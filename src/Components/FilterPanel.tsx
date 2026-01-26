@@ -413,6 +413,9 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         this.setState({ showTestAlert: false });
     }
 
+    // This function takes the filters, and creates a new solve based on them.
+    // For example, if only Cross and F2L Pair 1 are selected, then it sums up the times for only those
+    // fields, and leaves the rest intact.
     compressSolves(solves: Solve[]) {
         let newSolves: Solve[] = [];
 
