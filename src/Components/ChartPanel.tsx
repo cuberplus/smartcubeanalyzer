@@ -200,7 +200,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         return streakData;
     }
 
-    buildDailyRecordData() {
+    buildAllStreakData() {
         let fastestSolveEachDay: { [key: string]: number } = {};
         for (let i = 0; i < this.props.solves.length; i++) {
             let day = this.props.solves[i].date.toLocaleDateString('en-CA');
@@ -210,7 +210,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 fastestSolveEachDay[day] = this.props.solves[i].time;
             }
         }
-        console.log("fast solves", fastestSolveEachDay)
+
         let streaks: { [key: number]: StreakData } = {};
         streaks[5] = this.buildStreakData(fastestSolveEachDay, 5);
         streaks[10] = this.buildStreakData(fastestSolveEachDay, 10);
@@ -242,6 +242,31 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         return (<DataGrid rows={rows} columns={cols} />);
     }
 
+    buildDailyRecordData() {
+        let fastestSolveEachDay: { [key: string]: number } = {};
+        for (let i = 0; i < this.props.solves.length; i++) {
+            let day = this.props.solves[i].date.toLocaleDateString('en-CA');
+            if (fastestSolveEachDay[day]) {
+                fastestSolveEachDay[day] = Math.min(fastestSolveEachDay[day], this.props.solves[i].time);
+            } else {
+                fastestSolveEachDay[day] = this.props.solves[i].time;
+            }
+        }
+
+        let labels = Object.keys(fastestSolveEachDay).sort();
+        let dataPoints = labels.map(day => fastestSolveEachDay[day]);
+
+        let data: ChartData<"line"> = {
+            labels,
+            datasets: [{
+                label: "Fastest Solve Each Day",
+                data: dataPoints
+            }]
+        };
+
+        return data;
+
+    }
 
     buildStepPercentages() {
         let totals: { [step in StepName]?: number } = {};
@@ -760,7 +785,8 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         charts.push(buildChartHtml(<Bar data={this.buildInspectionData()} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", this.props.useLogScale)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
         charts.push(buildChartHtml(<Line data={this.buildStepAverages()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
         charts.push(buildChartHtml(<Line data={this.buildRunningInspectionData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
-        charts.push(buildChartHtml(this.buildDailyRecordData(), "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
+        charts.push(buildChartHtml(this.buildAllStreakData(), "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
+        charts.push(buildChartHtml(<Line data={this.buildDailyRecordData()} options={createOptions(ChartType.Line, "Date", "Time (s)", this.props.useLogScale, true, true)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
 
         // Add charts that require OLL
         if (ollIndex != -1) {
