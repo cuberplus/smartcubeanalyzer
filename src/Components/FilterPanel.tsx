@@ -417,31 +417,33 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         let newSolves: Solve[] = [];
 
         solves.forEach((solve) => {
-            let newSolve: Solve = GetEmptySolve();
-
             let newSteps: Step[] = solve.steps.filter((x) => {
                 return this.state.filters.steps.find((y) => y == x.name);
-            })
-            newSolve.steps = newSteps;
+            });
 
-            // TODO: probably don't use GetEmptySolve, but directly create a new solve so new props aren't forgotten
-            newSolve.id = solve.id;
-            newSolve.crossColor = solve.crossColor;
-            newSolve.date = solve.date;
-            newSolve.inspectionTime = solve.inspectionTime;
-            newSolve.executionTime = newSolve.steps.reduce((sum, current) => sum + current.executionTime, 0);
-            newSolve.recognitionTime = newSolve.steps.reduce((sum, current) => sum + current.recognitionTime, 0);
-            newSolve.isCorrupt = solve.isCorrupt;
-            newSolve.method = solve.method;
-            newSolve.scramble = solve.scramble;
-            newSolve.time = newSolve.steps.reduce((sum, current) => sum + current.time, 0);
-            newSolve.turns = newSolve.steps.reduce((sum, current) => sum + current.turns, 0);
-            newSolve.tps = newSolve.time == 0 ? 0 : newSolve.turns / newSolve.time;
-            newSolve.isFullStep = solve.isFullStep;
-            newSolve.isMistake = solve.isMistake;
+            let newSolve: Solve = {
+                id: solve.id,
+                crossColor: solve.crossColor,
+                date: solve.date,
+                inspectionTime: solve.inspectionTime,
+                executionTime: newSteps.reduce((sum, current) => sum + current.executionTime, 0),
+                recognitionTime: newSteps.reduce((sum, current) => sum + current.recognitionTime, 0),
+                isCorrupt: solve.isCorrupt,
+                method: solve.method,
+                scramble: solve.scramble,
+                time: newSteps.reduce((sum, current) => sum + current.time, 0),
+                turns: newSteps.reduce((sum, current) => sum + current.turns, 0),
+                tps: newSteps.reduce((sum, current) => sum + current.time, 0) === 0
+                    ? 0
+                    : newSteps.reduce((sum, current) => sum + current.turns, 0) / newSteps.reduce((sum, current) => sum + current.time, 0),
+                isFullStep: solve.isFullStep,
+                isMistake: solve.isMistake,
+                steps: newSteps,
+                session: solve.session
+            };
 
             newSolves.push(newSolve);
-        })
+        });
 
         return newSolves;
     }
