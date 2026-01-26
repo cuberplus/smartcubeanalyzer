@@ -575,6 +575,36 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         return records;
     }
 
+    buildCurrentRecords() {
+        if (this.props.solves.length == 0) {
+            //return this.getEmptyChartData();
+        }
+
+        let times = this.props.solves.map(x => x.time);
+        let single = Math.min.apply(null, times);
+        let ao5 = Math.min.apply(null, calculateMovingAverage(times, 5));
+        let ao12 = Math.min.apply(null, calculateMovingAverageChopped(times, 12, 1));
+        let ao100 = Math.min.apply(null, calculateMovingAverageChopped(times, 100, 5));
+        //let ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
+
+        const cols = [
+            { key: 'recordType', name: 'Record Type' },
+            { key: 'time', name: 'Time (s)' }
+        ];
+
+        const rows = [
+            { recordType: 'Single', time: single.toFixed(3) },
+            { recordType: 'Ao5', time: ao5.toFixed(3) },
+            { recordType: 'Ao12', time: ao12.toFixed(3) },
+            { recordType: 'Ao100', time: ao100.toFixed(3) },
+            //{ recordType: 'Ao1000', time: ao1000.toFixed(3) }
+        ];
+
+        const data = (<DataGrid rows={rows} columns={cols} />);
+
+        return data;
+    }
+
     buildRecordHistory()
         : ChartData<"line", {
             x: Date;
@@ -787,6 +817,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         charts.push(buildChartHtml(<Line data={this.buildRunningInspectionData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
         charts.push(buildChartHtml(this.buildAllStreakData(), "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
         charts.push(buildChartHtml(<Line data={this.buildDailyRecordData()} options={createOptions(ChartType.Line, "Date", "Time (s)", this.props.useLogScale, true, true)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        charts.push(buildChartHtml(this.buildCurrentRecords(), "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
         // Add charts that require OLL
         if (ollIndex != -1) {
