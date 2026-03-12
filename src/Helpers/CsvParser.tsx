@@ -229,6 +229,18 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         setStep(5, StepName.OLL, "oll_moves", "oll_time", "oll_recognition_time", "oll_execution_time", "oll_case_id");
         setStep(6, StepName.PLL, "pll_moves", "pll_time", "pll_recognition_time", "pll_execution_time", "pll_case_name");
 
+        // Normalize Acubemy OLL/PLL skip encodings to the shared "Solved" case label,
+        // so they behave like Cubeast data in filters and charts.
+        const ollStep = steps[5];
+        if (ollStep && ollStep.case === "-1") {
+            ollStep.case = "Solved";
+        }
+
+        const pllStep = steps[6];
+        if (pllStep && pllStep.case === "Unknown") {
+            pllStep.case = "Solved";
+        }
+
         return solve;
     });
 
