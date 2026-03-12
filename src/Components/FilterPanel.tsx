@@ -392,8 +392,22 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             newSolve.method = solve.method;
             newSolve.scramble = solve.scramble;
             newSolve.time = newSolve.steps.reduce((sum, current) => sum + current.time, 0);
-            newSolve.turns = newSolve.steps.reduce((sum, current) => sum + current.turns, 0);
-            newSolve.tps = newSolve.time == 0 ? 0 : newSolve.turns / newSolve.time;
+
+            const stepTurns = newSolve.steps.reduce((sum, current) => sum + current.turns, 0);
+
+            // If we have step-level turns (Cubeast-style data), prefer those.
+            // Otherwise, fall back to the original solve totals (Acubemy-style data).
+            if (stepTurns > 0) {
+                newSolve.turns = stepTurns;
+            } else {
+                newSolve.turns = solve.turns;
+            }
+
+            if (newSolve.time > 0 && newSolve.turns > 0) {
+                newSolve.tps = newSolve.turns / newSolve.time;
+            } else {
+                newSolve.tps = solve.tps;
+            }
 
             newSolves.push(newSolve);
         })

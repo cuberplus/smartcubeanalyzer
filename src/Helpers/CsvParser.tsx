@@ -206,6 +206,13 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             s.time = timeMs / 1000;
             s.recognitionTime = recMs / 1000;
             s.executionTime = execMs / 1000;
+            // Ensure step-level numeric fields are always initialized
+            if (s.turns === undefined || s.turns === null) {
+                s.turns = 0;
+            }
+            if (s.tps === undefined || s.tps === null) {
+                s.tps = 0;
+            }
             if (caseField) {
                 s.case = get(caseField);
             }
