@@ -36,6 +36,13 @@ describe('CsvParser', () => {
         expect(solve.steps[1].name).toBe('F2L Slot 1');
         expect(solve.steps[5].name).toBe('OLL');
         expect(solve.steps[6].name).toBe('PLL');
+
+        // Total solve recognition time for Acubemy should match the sum of
+        // the provided step-level recognition times (cross recognition is 0).
+        const stepRecognitionSum = solve.steps
+            .slice(1, 7) // F2L1-4, OLL, PLL
+            .reduce((acc, step) => acc + step.recognitionTime, 0);
+        expect(solve.recognitionTime).toBeCloseTo(stepRecognitionSum, 3);
     });
 
     test('Acubemy move counting ignores rotations', () => {

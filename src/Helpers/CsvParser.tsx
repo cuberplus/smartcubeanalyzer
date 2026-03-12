@@ -160,11 +160,19 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             getNumber("f2l_pair3_execution_time"),
             getNumber("f2l_pair4_execution_time"),
         ];
+        const f2lRecs = [
+            getNumber("f2l_pair1_recognition_time"),
+            getNumber("f2l_pair2_recognition_time"),
+            getNumber("f2l_pair3_recognition_time"),
+            getNumber("f2l_pair4_recognition_time"),
+        ];
 
         const ollTime = getNumber("oll_time");
         const ollExec = getNumber("oll_execution_time");
+        const ollRec = getNumber("oll_recognition_time");
         const pllTime = getNumber("pll_time");
         const pllExec = getNumber("pll_execution_time");
+        const pllRec = getNumber("pll_recognition_time");
 
         const ollCaseRaw = get("oll_case_id");
         const pllCaseRaw = get("pll_case_name");
@@ -181,8 +189,15 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             ollTime +
             pllTime;
 
+        // Aggregate recognition time: sum the provided step-level recognition
+        // fields when available. Cross recognition is treated as zero.
+        const totalRecMsFromFields =
+            f2lRecs.reduce((a, b) => a + b, 0) +
+            ollRec +
+            pllRec;
+
         solve.executionTime = totalExecMs / 1000;
-        solve.recognitionTime = Math.max(totalStepTimeMs - totalExecMs, 0) / 1000;
+        solve.recognitionTime = totalRecMsFromFields / 1000;
 
         // map steps into existing array
         const steps = solve.steps;
