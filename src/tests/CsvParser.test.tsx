@@ -74,8 +74,11 @@ describe('CsvParser', () => {
         expect(solve.rawSource).toBe('acubemy');
         expect(solve.rawSourceId).toBe('139047');
         expect(solve.session).toBe('PAU-2026-01');
-        expect(solve.turns).toBe(79);
-        expect(solve.tps).toBeCloseTo(2.9079, 3);
+        // Turns/TPS are now recomputed from the solution field, ignoring rotations.
+        // The original CSV reports 79 turns including rotations; after removing
+        // rotations from the solution we get 73 effective turns.
+        expect(solve.turns).toBe(73);
+        expect(solve.tps).toBeCloseTo(73 / (27167 / 1000), 3);
         expect(solve.crossColor).toBe('Yellow'); // cross_face U -> Yellow
         expect(solve.inspectionTime).toBeCloseTo(0, 3);
         expect(solve.steps[0].name).toBe('Cross');
@@ -93,11 +96,16 @@ describe('CsvParser', () => {
 
     test('Acubemy move counting ignores rotations', () => {
         const csv = `solve_id,date,total_time,scramble,solution,turns,tps,move_times,analysis_type,device_name,session_name,raw_solution,raw_timestamps,gyro_data,cross_face,cross_moves,cross_time,cross_execution_time,f2l_pair1_moves,f2l_pair1_time,f2l_pair1_recognition_time,f2l_pair1_execution_time,f2l_pair2_moves,f2l_pair2_time,f2l_pair2_recognition_time,f2l_pair2_execution_time,f2l_pair3_moves,f2l_pair3_time,f2l_pair3_recognition_time,f2l_pair3_execution_time,f2l_pair4_moves,f2l_pair4_time,f2l_pair4_recognition_time,f2l_pair4_execution_time,oll_case_id,oll_moves,oll_time,oll_recognition_time,oll_execution_time,pll_case_name,pll_moves,pll_time,pll_recognition_time,pll_execution_time
-1,2026-01-08T10:32:50.222Z,10000,,,,,,CFOP,DEV,TEST,,,,U,x y R U R' x2 y2,2000,2000,,,,,,,,,,,,,,,,,0,z U2 L',3000,3000,,,,x' R F R',5000,5000`;
+1,2026-01-08T10:32:50.222Z,10000,,x y R U R' x2 y2 z U2 L',0,0,,CFOP,DEV,TEST,,,,U,x y R U R' x2 y2,2000,2000,,,,,,,,,,,,,,,,,0,z U2 L',3000,3000,,,,x' R F R',5000,5000`;
 
         const solves: Solve[] = parseCsv(csv, ',');
         expect(solves.length).toBe(1);
         const solve = solves[0];
+
+        // solution: x y R U R' x2 y2 z U2 L'
+        // Non-rotation tokens: R, U, R', U2, L'  -> 5 turns
+        expect(solve.turns).toBe(5);
+        expect(solve.tps).toBeCloseTo(5 / 10, 5); // total_time = 10000 ms -> 10 s
 
         // cross_moves: x y R U R' x2 y2  -> 3 non-rotation tokens (R, U, R')
         expect(solve.steps[0].turns).toBe(3);

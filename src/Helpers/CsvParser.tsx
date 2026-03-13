@@ -118,6 +118,21 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
 }
 
 function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
+    const countNonRotationMoves = (moves: string | undefined | null): number => {
+        if (!moves) return 0;
+        // Strip surrounding quotes Acubemy may add around move strings.
+        const normalizedMoves = moves.trim().replace(/^"(.*)"$/, "$1");
+        if (!normalizedMoves) return 0;
+        const rotationSet = new Set([
+            "x", "x'", "x2",
+            "y", "y'", "y2",
+            "z", "z'", "z2",
+        ]);
+        const tokens = normalizedMoves
+            .split(/\s+/)
+            .filter((token) => token.length > 0);
+        return tokens.filter((token) => !rotationSet.has(token.toLowerCase())).length;
+    };
     const [keys, ...rows] = stringVal
         .trim()
         .split("\n")
@@ -156,8 +171,6 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         }
 
         solve.scramble = get("scramble");
-        solve.tps = getNumber("tps");
-        solve.turns = getNumber("turns");
 
         solve.session = get("session_name");
 
@@ -273,13 +286,8 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             s.time = timeMs / 1000;
             s.recognitionTime = recMs / 1000;
             s.executionTime = execMs / 1000;
-            // Count turns from move tokens, excluding rotations (x, y, z and variants).
-            const normalizedMoves = moves.trim().replace(/^"(.*)"$/, "$1");
-            const moveTokens = normalizedMoves
-                .split(/\s+/)
-                .filter(token => token.length > 0 && !/^[xyzXYZ]/.test(token));
-
-            s.turns = moveTokens.length;
+            // Count turns from move tokens, excluding rotations.
+            s.turns = countNonRotationMoves(moves);
             if (s.time > 0) {
                 s.tps = s.turns / s.time;
             }
@@ -312,6 +320,16 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             if (pllCaseRaw) {
                 pllStep.case = pllCaseRaw === "Unknown" ? "Solved" : pllCaseRaw;
             }
+        }
+
+        // Recompute solve-level turns/tps from the full solution, ignoring rotations.
+        const solutionMoves = get("solution") || get("raw_solution");
+        const totalTurns = countNonRotationMoves(solutionMoves);
+        solve.turns = totalTurns;
+        if (solve.time > 0) {
+            solve.tps = totalTurns / solve.time;
+        } else {
+            solve.tps = 0;
         }
 
         return solve;
