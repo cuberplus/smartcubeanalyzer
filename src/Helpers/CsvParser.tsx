@@ -88,9 +88,11 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
             }
         });
 
-        // Apply AUF adjustment: move leading AUF time from recognition to execution per step
+        // Apply AUF adjustment: move leading AUF time from recognition to execution per step,
+        // but do not apply this fix to the Cross step.
         const stepTimeMs = (s: { time: number }) => s.time * 1000;
         for (const step of obj.steps) {
+            if (step.name === StepName.Cross) continue;
             const aufMs = (step as any).aufDurationMs as number | undefined;
             if (aufMs == null || aufMs <= 0) continue;
             const capMs = Math.min(aufMs, stepTimeMs(step));

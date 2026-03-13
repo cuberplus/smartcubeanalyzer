@@ -36,6 +36,25 @@ describe('CsvParser', () => {
         expect(solve.executionTime).toBeCloseTo(sumExec, 3);
     });
 
+    test('Cubeast AUF adjustment is not applied to Cross step', () => {
+        const solves: Solve[] = parseCsv(cubeastSample, ',');
+        expect(solves.length).toBe(1);
+        const solve = solves[0];
+
+        const cross = solve.steps[0];
+        expect(cross.name).toBe('Cross');
+        // Raw Cubeast cross timing from CSV: time 3226 ms, recognition 0 ms, execution 3226 ms.
+        expect(cross.time).toBeCloseTo(3.226, 3);
+        expect(cross.recognitionTime).toBeCloseTo(0, 3);
+        expect(cross.executionTime).toBeCloseTo(3.226, 3);
+
+        // Sanity check: AUF adjustment is still applied to later steps like F2L Slot 1.
+        const f2l1 = solve.steps[1];
+        expect(f2l1.name).toBe('F2L Slot 1');
+        expect(f2l1.recognitionTime).toBeLessThan(3.083);
+        expect(f2l1.executionTime).toBeGreaterThan(1.095);
+    });
+
     test('Cubeast steps with no leading AUF are unchanged', () => {
         const solves: Solve[] = parseCsv(cubeastSample, ',');
         const solve = solves[0];
