@@ -815,11 +815,13 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 time: x.time.toFixed(3),
                 scramble: x.scramble,
                 id: x.id,
-                fullstep: x.isFullStep ? "Yes 🔥" : "No"
+                fullstep: x.isFullStep ? "Yes 🔥" : "No",
+                source: x.source,
+                rawSourceId: x.rawSourceId
             } as FastestSolve;
         });
 
-        return (<DataGrid rows={reduced} columns={cols} onCellClick={this.openCubeast} />);
+        return (<DataGrid rows={reduced} columns={cols} onCellClick={this.openSolveSource} />);
     }
 
     createTooltip(description: string): JSX.Element {
@@ -831,8 +833,14 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         return tooltip;
     }
 
-    openCubeast(params: CellClickArgs<FastestSolve>) {
-        window.open("https://app.cubeast.com/log/solves/" + params.row.id)
+    openSolveSource(params: CellClickArgs<FastestSolve>) {
+        if (params.row.source === 'acubemy' && params.row.rawSourceId) {
+            window.open("https://acubemy.com/shared/" + params.row.rawSourceId);
+            return;
+        }
+
+        // Default / fallback to Cubeast
+        window.open("https://app.cubeast.com/log/solves/" + params.row.id);
     }
 
     render() {

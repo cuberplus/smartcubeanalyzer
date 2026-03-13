@@ -21,10 +21,24 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
     showFileData() {
         let dataset = (document.getElementById("uploaded_data") as HTMLInputElement);
         let files: FileList = dataset.files as FileList;
-        let file = files.item(0);
-        let text = file?.text();
-        text?.then((value: string) => {
-            let solveList: Solve[] = parseCsv(value, ',');
+
+        if (!files || files.length === 0) {
+            return;
+        }
+
+        const filePromises: Promise<Solve[]>[] = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files.item(i);
+            if (!file) continue;
+            const textPromise = file.text().then((value: string) => parseCsv(value, ','));
+            filePromises.push(textPromise);
+        }
+
+        Promise.all(filePromises).then((results: Solve[][]) => {
+            const solveList: Solve[] = results.flat();
+            solveList.sort((a, b) => a.date.getTime() - b.date.getTime());
+
             this.setState({ solves: solveList });
 
             let method = CalculateMostUsedMethod(solveList);
@@ -42,9 +56,9 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             ReactGA.event({
                 category: 'DataLoaded',
                 action: 'Loaded User Data',
-                value: this.state.solves.length
+                value: solveList.length
             });
-        })
+        });
     };
 
     showTestData() {
@@ -101,8 +115,8 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                     <Row>
                         <Card className="info-card col-lg-6 col-md-12 col-sm-12">
                             <Form className="m-2">
-                                <h3>Upload your Cubeast CSV file:</h3>
-                                <FormControl type="file" id="uploaded_data" accept=".csv" />
+                                <h3>Upload your Cubeast and Acubemy CSV files:</h3>
+                                <FormControl type="file" id="uploaded_data" accept=".csv" multiple />
                             </Form>
                             <ButtonGroup className="m-2">
                                 <Button className="col-8" variant="success" onClick={() => { this.showFileData(); }}>

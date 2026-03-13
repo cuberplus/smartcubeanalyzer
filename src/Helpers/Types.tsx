@@ -82,7 +82,8 @@ export interface Filters {
     method: MethodName,
     sessions: string[],
     lowestInspection: number,
-    highestInspection: number
+    highestInspection: number,
+    sources: ('cubeast' | 'acubemy')[]
 }
 
 export interface Step {
@@ -98,6 +99,9 @@ export interface Step {
 
 export interface Solve {
     id: string,
+    source: 'cubeast' | 'acubemy',
+    rawSourceId?: string,
+    rawSource?: string,
     time: number,
     date: Date,
     crossColor: CrossColor,
@@ -136,6 +140,7 @@ export interface FilterPanelState {
     chosenSessions: Option[],
     solveCleanliness: Option[],
     solveLuckiness: Option[],
+    chosenSources: Option[],
     tabKey: number,
     windowSize: number,
     pointsPerGraph: number,
@@ -210,8 +215,10 @@ export interface FastestSolve {
     time: string,
     date: string,
     scramble: string,
-    id: string
-    fullstep: string
+    id: string,
+    source: 'cubeast' | 'acubemy',
+    fullstep: string,
+    rawSourceId?: string
 }
 
 export interface StreakData {
