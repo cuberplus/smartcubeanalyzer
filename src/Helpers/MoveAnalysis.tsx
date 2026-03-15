@@ -177,15 +177,16 @@ export function computeCaseFailureStats(
 
         const moveCounts = instances.map((i: CaseInstance) => i.coreMoves).sort((a: number, b: number) => a - b);
         const n = moveCounts.length;
-        let expectedMoves: number;
+        let expectedMovesBase: number;
         if (n === 2) {
-            expectedMoves = median(moveCounts);
+            expectedMovesBase = median(moveCounts);
         } else {
             const modeVal = lowestMode(moveCounts);
-            expectedMoves = modeVal !== null ? modeVal : median(moveCounts);
+            expectedMovesBase = modeVal !== null ? modeVal : median(moveCounts);
         }
         // add some tolerance to the expected moves (eg: PLL that end in U+D o R2 counted as R+R)
-        expectedMoves = expectedMoves + 2;
+        const tolerance = 2;
+        const expectedMoves = expectedMovesBase + tolerance;
 
         const avgMoves = moveCounts.reduce((a: number, b: number) => a + b, 0) / moveCounts.length;
         const avgStepTime = instances.reduce((s: number, i: CaseInstance) => s + i.stepTime, 0) / instances.length;
@@ -203,6 +204,7 @@ export function computeCaseFailureStats(
             failureCount,
             failureRate: instances.length > 0 ? (failureCount / instances.length) * 100 : 0,
             avgMoves,
+            expectedMovesBase,
             expectedMoves,
             instances: taggedInstances,
         });
@@ -246,8 +248,8 @@ export function computeSolveEfficiency(
     if (ollStep && ollStep.case && ollCaseStats) {
         const stats = ollCaseStats.get(ollStep.case);
         if (stats) {
-            const core = coreMovesCount(ollStep.moves);
-            hadOllFailure = core > stats.expectedMoves;
+            const inst = stats.instances.find((i) => i.solveId === solve.id);
+            hadOllFailure = inst?.failed ?? false;
         }
     }
 
@@ -255,8 +257,8 @@ export function computeSolveEfficiency(
     if (pllStep && pllStep.case && pllCaseStats) {
         const stats = pllCaseStats.get(pllStep.case);
         if (stats) {
-            const core = coreMovesCount(pllStep.moves);
-            hadPllFailure = core > stats.expectedMoves;
+            const inst = stats.instances.find((i) => i.solveId === solve.id);
+            hadPllFailure = inst?.failed ?? false;
         }
     }
 

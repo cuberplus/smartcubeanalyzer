@@ -1,7 +1,7 @@
 import { describe, expect, test } from '@jest/globals';
 import { analyzeStepMoves, computeCaseFailureStats, computeAufInefficiency, computeSolveEfficiency } from '../Helpers/MoveAnalysis';
 import { GetEmptySolve, GetEmptyStep } from '../Helpers/CubeHelpers';
-import { StepName } from '../Helpers/Types';
+import { CaseStats, StepName } from '../Helpers/Types';
 
 describe('analyzeStepMoves', () => {
     test('empty string returns zeroes', () => {
@@ -162,6 +162,21 @@ describe('computeCaseFailureStats', () => {
         const stats = computeCaseFailureStats([], 6);
         expect(stats).toEqual([]);
     });
+
+    test('expectedMovesBase is raw mode/median, expectedMoves is base plus tolerance', () => {
+        // All T cases have 14 core moves → mode 14, so expectedMovesBase 14, expectedMoves 16
+        const alg = "R U R' U' R' F R2 U' R' U' R U R' F'";
+        const solves = [
+            makeSolveWithPll("1", "T", alg, 14, 1),
+            makeSolveWithPll("2", "T", alg, 14, 1),
+            makeSolveWithPll("3", "T", alg, 14, 1),
+        ];
+        const stats = computeCaseFailureStats(solves, 6);
+        const tCase = stats.find(s => s.caseName === "T");
+        expect(tCase).toBeDefined();
+        expect(tCase!.expectedMovesBase).toBe(14);
+        expect(tCase!.expectedMoves).toBe(16);
+    });
 });
 
 describe('computeSolveEfficiency', () => {
@@ -185,5 +200,64 @@ describe('computeSolveEfficiency', () => {
         solve.steps[0] = { ...GetEmptyStep(), moves: "R U R' U'" };
         const result = computeSolveEfficiency(solve);
         expect(result.moveEfficiency).toBe(1);
+    });
+
+    test('hadOllFailure is true when OLL case stats have instance.failed true for this solve', () => {
+        const solve = GetEmptySolve();
+        solve.id = 'solve-1';
+        solve.steps[5] = { ...GetEmptyStep(), name: StepName.OLL, case: 'T', moves: 'R U R\' U\'', turns: 4, time: 1 };
+        const ollStats: CaseStats = {
+            caseName: 'T',
+            totalCount: 1,
+            failureCount: 1,
+            failureRate: 100,
+            avgMoves: 4,
+            expectedMovesBase: 8,
+            expectedMoves: 10,
+            instances: [{ solveId: 'solve-1', turns: 4, failed: true }]
+        };
+        const ollMap = new Map<string, CaseStats>([['T', ollStats]]);
+        const result = computeSolveEfficiency(solve, ollMap, undefined);
+        expect(result.hadOllFailure).toBe(true);
+        expect(result.hadPllFailure).toBe(false);
+    });
+
+    test('hadPllFailure is true when PLL case stats have instance.failed true for this solve', () => {
+        const solve = GetEmptySolve();
+        solve.id = 'solve-2';
+        solve.steps[6] = { ...GetEmptyStep(), name: StepName.PLL, case: 'Ua', moves: 'R U\' R U R U R U\' R\'', turns: 9, time: 1 };
+        const pllStats: CaseStats = {
+            caseName: 'Ua',
+            totalCount: 1,
+            failureCount: 1,
+            failureRate: 100,
+            avgMoves: 9,
+            expectedMovesBase: 10,
+            expectedMoves: 12,
+            instances: [{ solveId: 'solve-2', turns: 9, failed: true }]
+        };
+        const pllMap = new Map<string, CaseStats>([['Ua', pllStats]]);
+        const result = computeSolveEfficiency(solve, undefined, pllMap);
+        expect(result.hadOllFailure).toBe(false);
+        expect(result.hadPllFailure).toBe(true);
+    });
+
+    test('hadOllFailure is false when instance has failed false', () => {
+        const solve = GetEmptySolve();
+        solve.id = 'solve-3';
+        solve.steps[5] = { ...GetEmptyStep(), name: StepName.OLL, case: 'T', moves: 'R U R\' U\'', turns: 4, time: 0.5 };
+        const ollStats: CaseStats = {
+            caseName: 'T',
+            totalCount: 1,
+            failureCount: 0,
+            failureRate: 0,
+            avgMoves: 4,
+            expectedMovesBase: 8,
+            expectedMoves: 10,
+            instances: [{ solveId: 'solve-3', turns: 4, failed: false }]
+        };
+        const ollMap = new Map<string, CaseStats>([['T', ollStats]]);
+        const result = computeSolveEfficiency(solve, ollMap, undefined);
+        expect(result.hadOllFailure).toBe(false);
     });
 });

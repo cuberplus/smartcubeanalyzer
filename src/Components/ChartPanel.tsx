@@ -883,7 +883,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 failed: cs.failureCount,
                 failureRate: cs.failureRate.toFixed(1) + "%",
                 avgMoves: cs.avgMoves.toFixed(1),
-                expectedMoves: cs.expectedMoves,
+                expectedMoves: cs.expectedMovesBase,
                 avgWasted: avgWasted.toFixed(1),
                 avgTime: avgTime.toFixed(3),
             };
@@ -907,17 +907,14 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         const solves = this.props.solves;
         if (solves.length === 0) return this.getEmptyChartData();
 
-        const ollStats = computeCaseFailureStats(solves, 5);
-        const pllStats = computeCaseFailureStats(solves, 6);
-        const ollMap: { [key: string]: CaseStats } = {};
-        const pllMap: { [key: string]: CaseStats } = {};
-        ollStats.forEach((s: CaseStats) => { ollMap[s.caseName] = s; });
-        pllStats.forEach((s: CaseStats) => { pllMap[s.caseName] = s; });
+        const needOll = this.props.methodName === MethodName.CFOP;
+        const needPll = this.props.methodName === MethodName.CFOP || this.props.methodName === MethodName.CFOP_2OLL;
 
-        const efficiencies = solves.map((solve: Solve) => {
-            const eff = computeSolveEfficiency(solve, undefined, undefined);
-            return eff.moveEfficiency * 100;
-        });
+        const ollMap = needOll ? new Map(computeCaseFailureStats(solves, 5).map((s: CaseStats) => [s.caseName, s])) : undefined;
+        const pllMap = needPll ? new Map(computeCaseFailureStats(solves, 6).map((s: CaseStats) => [s.caseName, s])) : undefined;
+
+        const effList = solves.map((solve: Solve) => computeSolveEfficiency(solve, ollMap, pllMap));
+        const efficiencies = effList.map((e) => e.moveEfficiency * 100);
 
         let movingAvg = calculateMovingAverage(efficiencies, this.props.windowSize);
 
@@ -929,14 +926,38 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         movingAvg = reduceDataset(movingAvg, this.props.pointsPerGraph);
         labels = reduceDataset(labels, this.props.pointsPerGraph);
 
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
+        const datasets: ChartData<"line">["datasets"] = [
+            {
                 label: `Move Efficiency % (avg of ${this.props.windowSize})`,
                 data: movingAvg
-            }]
-        };
+            }
+        ];
+        if (this.props.methodName === MethodName.CFOP) {
+            const ollFailureData = labels.map((lbl, i) => effList[parseInt(lbl, 10) - 1]?.hadOllFailure ? movingAvg[i] : null);
+            const pllFailureData = labels.map((lbl, i) => effList[parseInt(lbl, 10) - 1]?.hadPllFailure ? movingAvg[i] : null);
+            datasets.push(
+                {
+                    label: 'OLL failure',
+                    data: ollFailureData,
+                    showLine: false,
+                    pointRadius: 6,
+                    pointBackgroundColor: 'rgba(255, 99, 132, 0.8)',
+                    pointBorderColor: 'rgb(255, 99, 132)',
+                    pointBorderWidth: 1
+                },
+                {
+                    label: 'PLL failure',
+                    data: pllFailureData,
+                    showLine: false,
+                    pointRadius: 6,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    pointBorderColor: 'rgb(54, 162, 235)',
+                    pointBorderWidth: 1
+                }
+            );
+        }
 
+        let data: ChartData<"line"> = { labels, datasets };
         return data;
     }
 

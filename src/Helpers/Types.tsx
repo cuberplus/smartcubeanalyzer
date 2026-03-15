@@ -251,6 +251,9 @@ export interface CaseStats {
     failureCount: number,
     failureRate: number,
     avgMoves: number,
+    /** Expected move count before tolerance (for display). */
+    expectedMovesBase: number,
+    /** Expected move count with tolerance (used for failure detection). */
     expectedMoves: number,
     instances: { solveId: string; turns: number; failed: boolean }[]
 }
