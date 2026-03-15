@@ -9,7 +9,7 @@ import { Const } from "../Helpers/Constants";
 import DataGrid, { CellClickArgs } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import 'chartjs-adapter-moment';
-import { analyzeStepMoves, computeCaseFailureStats, computeSolveEfficiency } from "../Helpers/MoveAnalysis";
+import { analyzeStepMoves, computeCaseFailureStats, computeSolveEfficiency, coreMovesCount } from "../Helpers/MoveAnalysis";
 
 export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState> {
     state: ChartPanelState = { solves: [] };
@@ -117,6 +117,12 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildRunningTurnsData() {
+        /*
+        this.props.solves.forEach((solve, index) => {
+            const turnList = solve.steps.map(s => s.moves).filter(Boolean).join(' ');
+            console.debug(`[Average Turns] solve ${index + 1}: moveCount=${solve.turns}, turnList="${turnList}"`);
+        });
+        */
         let movingAverage = calculateMovingAverage(this.props.solves.map(x => x.turns), this.props.windowSize);
 
         let labels = [];
@@ -834,6 +840,23 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         const solves = this.props.solves.slice(-this.props.windowSize);
         const caseStats = computeCaseFailureStats(solves, stepIndex);
 
+        // debug log for failed cases
+        /*
+        const solveById = new Map(solves.map((s: Solve) => [s.id, s]));
+        for (const cs of caseStats) {
+            if (cs.failureCount === 0) continue;
+            console.log(`[Algorithm Practice] Case "${cs.caseName}" (expected moves: ${cs.expectedMoves})`);
+            for (const inst of cs.instances) {
+                const solve = solveById.get(inst.solveId);
+                const step = solve?.steps[stepIndex];
+                const moves = step?.moves ?? "";
+                const coreMoves = coreMovesCount(moves);
+                const stepTime = step?.time ?? 0;
+                console.log(`  solveId ${inst.solveId} — moves: "${moves}" — coreMoves: ${coreMoves} — time: ${stepTime.toFixed(3)}s — failed: ${inst.failed}`);
+            }
+        }
+        */
+
         type AlgoPracticeRow = {
             case: string;
             total: number;
@@ -872,7 +895,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             { key: 'failed', name: 'Failed' },
             { key: 'failureRate', name: 'Failure %' },
             { key: 'avgMoves', name: 'Avg Moves' },
-            { key: 'expectedMoves', name: 'Expected (p90)' },
+            { key: 'expectedMoves', name: 'Expected' },
             { key: 'avgWasted', name: 'Avg Wasted' },
             { key: 'avgTime', name: 'Avg Time (s)' },
         ];
@@ -975,7 +998,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         // Add charts that require exactly one step to be chosen
         if (this.props.steps.length == 1 && (this.props.steps[0] === StepName.OLL || this.props.steps[0] === StepName.PLL)) {
             charts.push(buildChartHtml(<Bar data={this.buildCaseData()} options={createOptions(ChartType.Bar, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Recognition Time and Execution Time per Case", "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."));
-            charts.push(buildChartHtml(this.buildAlgorithmPracticeTable(), "Algorithm Practice", "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded the 90th percentile for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."));
+            charts.push(buildChartHtml(this.buildAlgorithmPracticeTable(), "Algorithm Practice", "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."));
         }
 
         // Add remaining charts

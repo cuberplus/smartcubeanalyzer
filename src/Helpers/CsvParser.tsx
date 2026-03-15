@@ -4,10 +4,10 @@ import { Solve, CrossColor, MethodName, StepName } from "./Types";
 import moment from 'moment';
 
 export const AUF_MOVES = new Set(['U', "U'", 'U2', "U2'", "U3", "U3'"]);
-const ROTATIONS = new Set([
-    "x", "x'", "x2",
-    "y", "y'", "y2",
-    "z", "z'", "z2",
+export const ROTATIONS = new Set([
+    "x", "x'", "x2", "x3",
+    "y", "y'", "y2", "y3",
+    "z", "z'", "z2", "z3"
 ]);
 
 export type MoveTiming = { move: string; timestamp: number };
@@ -150,6 +150,20 @@ export function tokenizeMoves(raw: string | undefined | null): string[] {
         .filter((token) => token.length > 0);
 }
 
+/** Counts move tokens excluding cube rotations (x, y, z). Use for all turn counts. */
+export function countMovesExcludingRotations(movesString: string | undefined | null): number {
+    const tokens = tokenizeMoves(movesString);
+    if (!tokens.length) return 0;
+    return tokens.filter((t) => !ROTATIONS.has(t.toLowerCase())).length;
+}
+
+/** Returns move string with all rotation tokens (x, y, z and variants) removed. Use for Acubemy so stored data has no rotations. */
+export function stripRotationsFromMoveString(movesString: string | undefined | null): string {
+    if (!movesString || !movesString.trim()) return '';
+    const tokens = tokenizeMoves(movesString);
+    return tokens.filter((t) => !ROTATIONS.has(t.toLowerCase())).join(' ');
+}
+
 function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
 
     // Replace commas inside [...] so split(splitter) does not break on e.g. step case "[FL,BR]->FR 30".
@@ -226,6 +240,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
                 step.executionTime = seg.preAuf + coreExec + seg.postAuf;
                 step.time = step.recognitionTime + step.executionTime;
                 step.moves = moveTimings.map((m) => m.move).join(" ");
+                step.turns = moveTimings.length;
                 if (moveTimings.length > 0) {
                     prevEndTsMs = moveTimings[moveTimings.length - 1].timestamp;
                 }
@@ -252,6 +267,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         obj.executionTime = obj.steps.reduce((s, st) => s + st.executionTime, 0);
         obj.preAufTime = obj.steps.reduce((s, st) => s + st.preAufTime, 0);
         obj.postAufTime = obj.steps.reduce((s, st) => s + st.postAufTime, 0);
+        obj.turns = obj.steps.reduce((s, st) => s + st.turns, 0);
 
         obj.source = 'cubeast';
         obj.rawSource = 'cubeast';
@@ -280,11 +296,6 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         { index: 6, name: StepName.PLL, movesField: "pll_moves" },
     ];
 
-    const countNonRotationMoves = (moves: string | undefined | null): number => {
-        const tokens = tokenizeMoves(moves);
-        if (!tokens.length) return 0;
-        return tokens.filter((token) => !ROTATIONS.has(token.toLowerCase())).length;
-    };
     const [keys, ...rows] = stringVal
         .trim()
         .split("\n")
@@ -316,8 +327,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
     const initAcubemySteps = (
         steps: Solve["steps"],
-        get: (name: string) => string,
-        countMoves: (moves: string | undefined | null) => number
+        get: (name: string) => string
     ) => {
         for (const def of ACUBEMY_STEP_DEFS) {
             const s = steps[def.index];
@@ -326,9 +336,9 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             s.time = 0;
             s.recognitionTime = 0;
             s.executionTime = 0;
-            s.turns = countMoves(moves);
+            s.turns = countMovesExcludingRotations(moves);
             if (moves) {
-                s.moves = moves;
+                s.moves = stripRotationsFromMoveString(moves);
             }
         }
     };
@@ -357,10 +367,9 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
     const computeAcubemySolveTurnsAndTps = (
         solve: Solve,
-        solutionMoves: string | undefined | null,
-        countMoves: (moves: string | undefined | null) => number
+        solutionMoves: string | undefined | null
     ) => {
-        const totalTurns = countMoves(solutionMoves);
+        const totalTurns = countMovesExcludingRotations(solutionMoves);
         solve.turns = totalTurns;
         if (solve.time > 0) {
             solve.tps = totalTurns / solve.time;
@@ -369,19 +378,46 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         }
     };
 
+    /** Strips rotations from solution and move_times in parallel so lengths stay in sync. */
+    const stripRotationsFromSolutionAndTimes = (
+        solutionMovesRaw: string | undefined | null,
+        moveTimesRaw: string | undefined | null
+    ): { solutionNoRot: string; moveTimesNoRot: string } => {
+        const solutionTokens = tokenizeMoves(solutionMovesRaw);
+        if (!solutionTokens.length || !moveTimesRaw || !moveTimesRaw.trim()) {
+            return { solutionNoRot: '', moveTimesNoRot: '' };
+        }
+        const timeTokens = normalizeMovesString(moveTimesRaw)
+            .split(/\s+/)
+            .filter((t) => t.length > 0)
+            .map((t) => Number(t));
+        if (solutionTokens.length !== timeTokens.length) {
+            return { solutionNoRot: '', moveTimesNoRot: '' };
+        }
+        const keptMoves: string[] = [];
+        const keptTimes: number[] = [];
+        for (let i = 0; i < solutionTokens.length; i++) {
+            if (ROTATIONS.has(solutionTokens[i].toLowerCase())) continue;
+            keptMoves.push(solutionTokens[i]);
+            keptTimes.push(timeTokens[i]);
+        }
+        return {
+            solutionNoRot: keptMoves.join(' '),
+            moveTimesNoRot: keptTimes.join(' '),
+        };
+    };
+
     type StepRange = {
         startIdx: number;
         endIdx: number;
-        firstNonIdx: number | null;
-        lastNonIdx: number | null;
     };
 
+    /** solutionMovesRaw and moveTimesRaw must already have rotations stripped (use stripRotationsFromSolutionAndTimes). */
     const recomputeAcubemyStepTimes = (
         solve: Solve,
         stepDefs: AcubemyStepDef[],
         solutionMovesRaw: string | undefined | null,
-        moveTimesRaw: string | undefined | null,
-        rotations: Set<string>
+        moveTimesRaw: string | undefined | null
     ) => {
         const solutionTokens = tokenizeMoves(solutionMovesRaw);
         if (!solutionTokens.length || !moveTimesRaw || !moveTimesRaw.trim()) {
@@ -414,21 +450,9 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
                     }
                 }
                 if (!ok) continue;
-                let firstNon: number | null = null;
-                let lastNon: number | null = null;
-                for (let k = 0; k < tokens.length; k++) {
-                    const globalIdx = i + k;
-                    const move = solutionTokens[globalIdx];
-                    if (!rotations.has(move.toLowerCase())) {
-                        if (firstNon == null) firstNon = globalIdx;
-                        lastNon = globalIdx;
-                    }
-                }
                 return {
                     startIdx: i,
                     endIdx: i + tokens.length - 1,
-                    firstNonIdx: firstNon,
-                    lastNonIdx: lastNon,
                 };
             }
             return null;
@@ -447,7 +471,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             }
         }
 
-        let prevLastNonIdx: number | null = null;
+        let prevEndIdx: number | null = null;
         let accumulatedRecMs = 0;
         let accumulatedExecMs = 0;
         let accumulatedPreAufMs = 0;
@@ -457,7 +481,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             const s = steps[def.index];
             const range = stepRanges[def.index];
 
-            if (!range || range.firstNonIdx == null || range.lastNonIdx == null) {
+            if (!range) {
                 s.recognitionTime = 0;
                 s.executionTime = 0;
                 s.preAufTime = 0;
@@ -469,13 +493,10 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
             const moveTimings: MoveTiming[] = [];
             for (let k = range.startIdx; k <= range.endIdx; k++) {
-                const move = solutionTokens[k];
-                if (!rotations.has(move.toLowerCase())) {
-                    moveTimings.push({ move, timestamp: timeTokens[k] });
-                }
+                moveTimings.push({ move: solutionTokens[k], timestamp: timeTokens[k] });
             }
 
-            const prevEndTsMs = prevLastNonIdx == null ? null : timeTokens[prevLastNonIdx];
+            const prevEndTsMs = prevEndIdx == null ? null : timeTokens[prevEndIdx];
             const seg = computeStepSegments(moveTimings, prevEndTsMs, s.name);
 
             s.recognitionTime = seg.recognition;
@@ -492,7 +513,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             accumulatedExecMs += s.executionTime * 1000;
             accumulatedPreAufMs += seg.preAuf * 1000;
             accumulatedPostAufMs += seg.postAuf * 1000;
-            prevLastNonIdx = range.lastNonIdx;
+            prevEndIdx = range.endIdx;
         }
 
         solve.recognitionTime = accumulatedRecMs / 1000;
@@ -563,20 +584,21 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         const ollCaseRaw = get("oll_case_id");
         const pllCaseRaw = get("pll_case_name");
 
-        initAcubemySteps(steps, get, countNonRotationMoves);
+        initAcubemySteps(steps, get);
         normalizeAcubemyLastLayerCases(steps, ollCaseRaw, pllCaseRaw);
 
-        const solutionMoves = get("solution") || get("raw_solution");
-        computeAcubemySolveTurnsAndTps(solve, solutionMoves, countNonRotationMoves);
-
+        const solutionMovesRaw = get("solution") || get("raw_solution");
         const moveTimesRaw = get("move_times");
-        if (solutionMoves && moveTimesRaw && moveTimesRaw.trim().length > 0) {
+        const { solutionNoRot, moveTimesNoRot } = stripRotationsFromSolutionAndTimes(solutionMovesRaw, moveTimesRaw);
+
+        computeAcubemySolveTurnsAndTps(solve, solutionNoRot || solutionMovesRaw);
+
+        if (solutionNoRot && moveTimesNoRot) {
             recomputeAcubemyStepTimes(
                 solve,
                 ACUBEMY_STEP_DEFS,
-                solutionMoves,
-                moveTimesRaw,
-                ROTATIONS
+                solutionNoRot,
+                moveTimesNoRot
             );
         }
 

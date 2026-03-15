@@ -115,10 +115,10 @@ describe('computeAufInefficiency', () => {
 });
 
 describe('computeCaseFailureStats', () => {
-    function makeSolveWithPll(id: string, caseName: string, moves: string, turns: number) {
+    function makeSolveWithPll(id: string, caseName: string, moves: string, turns: number, stepTime: number = 1) {
         const solve = GetEmptySolve();
         solve.id = id;
-        solve.steps[6] = { ...GetEmptyStep(), name: StepName.PLL, case: caseName, moves, turns };
+        solve.steps[6] = { ...GetEmptyStep(), name: StepName.PLL, case: caseName, moves, turns, time: stepTime };
         return solve;
     }
 
@@ -136,7 +136,7 @@ describe('computeCaseFailureStats', () => {
             makeSolveWithPll("8", "T", normalAlg, 14),
             makeSolveWithPll("9", "T", normalAlg, 14),
             makeSolveWithPll("10", "T", normalAlg, 14),
-            makeSolveWithPll("11", "T", failedAlg, 28),
+            makeSolveWithPll("11", "T", failedAlg, 28, 2),
         ];
 
         const stats = computeCaseFailureStats(solves, 6);

@@ -1,4 +1,4 @@
-import { AUF_MOVES, tokenizeMoves } from "./CsvParser";
+import { AUF_MOVES, ROTATIONS, tokenizeMoves } from "./CsvParser";
 import { AufInefficiency, CaseStats, MoveAnalysisResult, RedundantPair, Solve, SolveEfficiency, Step } from "./Types";
 
 /**
@@ -109,21 +109,53 @@ function countAufMoves(tokens: string[], direction: 'leading' | 'trailing'): num
     return count;
 }
 
-function coreMovesCount(movesString: string): number {
+function isRotationOrAuf(t: string): boolean {
+    return ROTATIONS.has(t.toLowerCase()) || AUF_MOVES.has(t);
+}
+
+export function coreMovesCount(movesString: string): number {
     const tokens = tokenizeMoves(movesString);
     if (tokens.length === 0) return 0;
-    const leadingAuf = countAufMoves(tokens, 'leading');
-    const trailingAuf = countAufMoves(tokens, 'trailing');
-    const coreEnd = tokens.length - trailingAuf;
-    const coreStart = leadingAuf;
-    return Math.max(0, coreEnd - coreStart);
+    let start = 0;
+    while (start < tokens.length && isRotationOrAuf(tokens[start])) start++;
+    let end = tokens.length - 1;
+    while (end >= start && isRotationOrAuf(tokens[end])) end--;
+    let count = 0;
+    for (let i = start; i <= end; i++) {
+        if (!ROTATIONS.has(tokens[i].toLowerCase())) count++;
+    }
+    return count;
+}
+
+/** Returns median (p50) of sorted array. */
+function median(sorted: number[]): number {
+    if (sorted.length === 0) return 0;
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 1) return sorted[mid];
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/** Returns the lowest mode (smallest value that appears most often), or null if all values have the same frequency. */
+function lowestMode(sorted: number[]): number | null {
+    if (sorted.length === 0) return null;
+    const counts: { [value: number]: number } = {};
+    for (const v of sorted) {
+        counts[v] = (counts[v] ?? 0) + 1;
+    }
+    const maxCount = Math.max(...Object.values(counts));
+    const modes = Object.keys(counts)
+        .map(Number)
+        .filter((v) => counts[v] === maxCount)
+        .sort((a, b) => a - b);
+    if (modes.length === sorted.length) return null;
+    return modes[0];
 }
 
 export function computeCaseFailureStats(
     solves: Solve[],
     stepIndex: number
 ): CaseStats[] {
-    type CaseInstance = { solveId: string; coreMoves: number; totalTurns: number };
+    type CaseInstance = { solveId: string; coreMoves: number; totalTurns: number; stepTime: number };
     const caseMap: { [caseName: string]: CaseInstance[] } = {};
 
     for (const solve of solves) {
@@ -133,7 +165,7 @@ export function computeCaseFailureStats(
         const caseName = step.case;
         if (!(caseName in caseMap)) caseMap[caseName] = [];
         const core = coreMovesCount(step.moves);
-        caseMap[caseName].push({ solveId: solve.id, coreMoves: core, totalTurns: step.turns });
+        caseMap[caseName].push({ solveId: solve.id, coreMoves: core, totalTurns: step.turns, stepTime: step.time });
     }
 
     const results: CaseStats[] = [];
@@ -144,14 +176,23 @@ export function computeCaseFailureStats(
         const instances = caseMap[caseName];
 
         const moveCounts = instances.map((i: CaseInstance) => i.coreMoves).sort((a: number, b: number) => a - b);
-        const p90Idx = Math.min(Math.floor(moveCounts.length * 0.9), moveCounts.length - 1);
-        const expectedMoves = moveCounts[p90Idx];
+        const n = moveCounts.length;
+        let expectedMoves: number;
+        if (n === 2) {
+            expectedMoves = median(moveCounts);
+        } else {
+            const modeVal = lowestMode(moveCounts);
+            expectedMoves = modeVal !== null ? modeVal : median(moveCounts);
+        }
+        // add some tolerance to the expected moves (eg: PLL that end in U+D o R2 counted as R+R)
+        expectedMoves = expectedMoves + 2;
 
         const avgMoves = moveCounts.reduce((a: number, b: number) => a + b, 0) / moveCounts.length;
+        const avgStepTime = instances.reduce((s: number, i: CaseInstance) => s + i.stepTime, 0) / instances.length;
 
         let failureCount = 0;
         const taggedInstances = instances.map((inst: CaseInstance) => {
-            const failed = inst.coreMoves > expectedMoves;
+            const failed = inst.coreMoves > expectedMoves && inst.stepTime > avgStepTime;
             if (failed) failureCount++;
             return { solveId: inst.solveId, turns: inst.totalTurns, failed };
         });
