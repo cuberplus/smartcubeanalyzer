@@ -1,7 +1,7 @@
 import React from "react";
-import { ChartPanelProps, ChartPanelState, ChartType, CaseStats, CrossColor, FastestSolve, MethodName, OllEdgeOrientation, PllCornerPermutation, Solve, StepName, StreakData } from "../Helpers/Types";
-import { Chart as ChartJS, ChartData, CategoryScale, Point } from 'chart.js/auto';
-import { calculateAverage, calculateMovingAverage, calculateMovingPercentage, calculateMovingStdDev, reduceDataset, splitIntoChunks, getTypicalAverages, calculateMovingAverageChopped } from "../Helpers/MathHelpers";
+import { ChartPanelProps, ChartPanelState, ChartType, CaseStats, FastestSolve, MethodName, Solve, StepName, StreakData } from "../Helpers/Types";
+import { Chart as ChartJS, ChartData, CategoryScale } from 'chart.js/auto';
+import { calculateAverage, calculateMovingAverage, reduceDataset, calculateMovingAverageChopped } from "../Helpers/MathHelpers";
 import { createOptions, buildChartHtml } from "../Helpers/ChartHelpers";
 import { Row, Tooltip } from "react-bootstrap";
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
@@ -10,9 +10,114 @@ import DataGrid, { CellClickArgs } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import 'chartjs-adapter-moment';
 import { analyzeStepMoves, computeCaseFailureStats, computeSolveEfficiency, coreMovesCount } from "../Helpers/MoveAnalysis";
+import {
+    buildRunningAverageData as buildRunningAverageChartData,
+    buildRunningStdDevData as buildRunningStdDevChartData,
+    buildRunningTpsData as buildRunningTpsChartData,
+    buildRunningInspectionData as buildRunningInspectionChartData,
+    buildRunningTurnsData as buildRunningTurnsChartData,
+    buildRunningRecognitionExecution as buildRunningRecognitionExecutionChartData,
+    buildHistogramData as buildHistogramChartData,
+    buildGoodBadData as buildGoodBadChartData,
+    buildRunningColorPercentages as buildRunningColorPercentagesChartData,
+    buildStepPercentages as buildStepPercentagesChartData,
+    buildOllCategoryChart as buildOllCategoryChartData,
+    buildPllCategoryChart as buildPllCategoryChartData,
+    buildInspectionData as buildInspectionChartData,
+    buildTypicalCompare as buildTypicalCompareChartData,
+} from "../Helpers/ChartDataBuilders";
+
+ChartJS.register(CategoryScale);
 
 export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState> {
     state: ChartPanelState = { solves: [] };
+
+    private _chartDataCache: Record<string, unknown> | null = null;
+    private _lastSolvesRef: Solve[] | null = null;
+    private _lastWindowSizeRef: number = 0;
+    private _lastPointsPerGraphRef: number = 0;
+    private _lastStepsKeyRef: string = '';
+    private _lastUseLogScaleRef: boolean = false;
+    private _lastGoodTimeRef: number = 0;
+    private _lastBadTimeRef: number = 0;
+    private _lastMethodNameRef: MethodName = MethodName.CFOP;
+    private _lastUse4SegmentTimingRef: boolean = false;
+
+    private _propsChanged(): boolean {
+        const p = this.props;
+        const stepsKey = p.steps.join(',');
+        return (
+            this._lastSolvesRef !== p.solves ||
+            this._lastWindowSizeRef !== p.windowSize ||
+            this._lastPointsPerGraphRef !== p.pointsPerGraph ||
+            this._lastStepsKeyRef !== stepsKey ||
+            this._lastUseLogScaleRef !== p.useLogScale ||
+            this._lastGoodTimeRef !== p.goodTime ||
+            this._lastBadTimeRef !== p.badTime ||
+            this._lastMethodNameRef !== p.methodName ||
+            this._lastUse4SegmentTimingRef !== p.use4SegmentTiming
+        );
+    }
+
+    private _updatePropsRefs(): void {
+        const p = this.props;
+        this._lastSolvesRef = p.solves;
+        this._lastWindowSizeRef = p.windowSize;
+        this._lastPointsPerGraphRef = p.pointsPerGraph;
+        this._lastStepsKeyRef = p.steps.join(',');
+        this._lastUseLogScaleRef = p.useLogScale;
+        this._lastGoodTimeRef = p.goodTime;
+        this._lastBadTimeRef = p.badTime;
+        this._lastMethodNameRef = p.methodName;
+        this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
+    }
+
+    private _computeAllChartData(): Record<string, unknown> {
+        const ollIndex = this.props.steps.indexOf(StepName.OLL);
+        const pllIndex = this.props.steps.indexOf(StepName.PLL);
+        const cache: Record<string, unknown> = {
+            runningAverage: this.buildRunningAverageData(),
+            runningStdDev: this.buildRunningStdDevData(),
+            runningTps: this.buildRunningTpsData(),
+            runningInspection: this.buildRunningInspectionData(),
+            runningTurns: this.buildRunningTurnsData(),
+            runningRecognitionExecution: this.buildRunningRecognitionExecution(),
+            runningEfficiency: this.buildRunningEfficiencyData(),
+            histogram: this.buildHistogramData(),
+            stepAverages: this.buildStepAverages(),
+            runningColorPercentages: this.buildRunningColorPercentages(),
+            inspection: this.buildInspectionData(),
+            dailyRecord: this.buildDailyRecordData(),
+            allStreakData: this.buildAllStreakData(),
+            currentRecords: this.buildCurrentRecords(),
+            goodBad: this.buildGoodBadData(this.props.goodTime, this.props.badTime),
+            recordHistory: this.buildRecordHistory(),
+            stepPercentages: this.buildStepPercentages(),
+            typicalCompare: this.buildTypicalCompare(),
+            bestSolvesData: this._computeBestSolvesData(),
+        };
+        if (ollIndex !== -1) cache.ollCategory = this.buildOllCategoryChart(ollIndex);
+        if (pllIndex !== -1) cache.pllCategory = this.buildPllCategoryChart(pllIndex);
+        if (this.props.steps.length === 1 && (this.props.steps[0] === StepName.OLL || this.props.steps[0] === StepName.PLL)) {
+            cache.caseData = this.buildCaseData();
+            cache.algorithmPracticeTable = this.buildAlgorithmPracticeTable();
+        }
+        return cache;
+    }
+
+    private _computeBestSolvesData(): FastestSolve[] {
+        const solveCopy = this.props.solves.slice().sort((a: Solve, b: Solve) => a.time - b.time);
+        const fastest = solveCopy.slice(0, Const.FastestSolvesCount);
+        return fastest.map(x => ({
+            date: x.date.toDateString(),
+            time: x.time.toFixed(3),
+            scramble: x.scramble,
+            id: x.id,
+            fullstep: x.isFullStep ? "Yes 🔥" : "No",
+            source: x.source,
+            rawSourceId: x.rawSourceId
+        } as FastestSolve));
+    }
 
     getEmptyChartData() {
         let data: ChartData<"line"> = {
@@ -23,174 +128,32 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildRunningAverageData() {
-        let movingAverage = calculateMovingAverage(this.props.solves.map(x => x.time), this.props.windowSize);
-
-        let labels = [];
-        for (let i = 1; i <= movingAverage.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingAverage = reduceDataset(movingAverage, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Average Time Of ${this.props.windowSize}`,
-                data: movingAverage
-            }]
-        }
-
-        return data;
+        return buildRunningAverageChartData(this.props.solves, this.props.windowSize, this.props.pointsPerGraph);
     }
 
     buildRunningStdDevData() {
-        let movingAverage = calculateMovingStdDev(this.props.solves.map(x => x.time), this.props.windowSize);
-
-        let labels = [];
-        for (let i = 1; i <= movingAverage.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingAverage = reduceDataset(movingAverage, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Average StdDev Of ${this.props.windowSize}`,
-                data: movingAverage
-            }]
-        }
-
-        return data;
+        return buildRunningStdDevChartData(this.props.solves, this.props.windowSize, this.props.pointsPerGraph);
     }
 
     buildRunningTpsData() {
-        let movingAverage = calculateMovingAverage(this.props.solves.map(x => x.tps), this.props.windowSize);
-        let movingAverageDuringExecution = calculateMovingAverage(this.props.solves.map(x => (x.turns / x.executionTime)), this.props.windowSize)
-
-        let labels = [];
-        for (let i = 1; i <= movingAverage.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingAverage = reduceDataset(movingAverage, this.props.pointsPerGraph);
-        movingAverageDuringExecution = reduceDataset(movingAverageDuringExecution, this.props.pointsPerGraph)
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Average TPS Of ${this.props.windowSize}`,
-                data: movingAverage
-            },
-            {
-                label: `Average TPS During Execution Of ${this.props.windowSize}`,
-                data: movingAverageDuringExecution
-            }]
-        }
-
-        return data;
+        return buildRunningTpsChartData(this.props.solves, this.props.windowSize, this.props.pointsPerGraph);
     }
 
     buildRunningInspectionData() {
-        let movingInspection = calculateMovingAverage(this.props.solves.map(x => x.inspectionTime), this.props.windowSize);
-
-        let labels = [];
-        for (let i = 1; i <= movingInspection.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingInspection = reduceDataset(movingInspection, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Average Inspection Of ${this.props.windowSize}`,
-                data: movingInspection
-            }]
-        }
-
-        return data;
+        return buildRunningInspectionChartData(this.props.solves, this.props.windowSize, this.props.pointsPerGraph);
     }
 
     buildRunningTurnsData() {
-        /*
-        this.props.solves.forEach((solve, index) => {
-            const turnList = solve.steps.map(s => s.moves).filter(Boolean).join(' ');
-            console.debug(`[Average Turns] solve ${index + 1}: moveCount=${solve.turns}, turnList="${turnList}"`);
-        });
-        */
-        let movingAverage = calculateMovingAverage(this.props.solves.map(x => x.turns), this.props.windowSize);
-
-        let labels = [];
-        for (let i = 1; i <= movingAverage.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingAverage = reduceDataset(movingAverage, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Average Turns Of ${this.props.windowSize}`,
-                data: movingAverage
-            }]
-        }
-
-        return data;
+        return buildRunningTurnsChartData(this.props.solves, this.props.windowSize, this.props.pointsPerGraph);
     }
 
     buildRunningRecognitionExecution() {
-        const colors = {
-            recognition: 'rgb(54, 162, 235)',
-            preAuf: 'rgb(153, 102, 255)',
-            execution: 'rgb(255, 99, 132)',
-            postAuf: 'rgb(255, 159, 64)',
-        };
-        let movingRecognition = calculateMovingAverage(this.props.solves.map(x => x.recognitionTime), this.props.windowSize);
-        let labels = [];
-        for (let i = 1; i <= movingRecognition.length; i++) {
-            labels.push(i.toString());
-        }
-        movingRecognition = reduceDataset(movingRecognition, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        if (this.props.use4SegmentTiming) {
-            const movingPreAuf = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.preAufTime), this.props.windowSize), this.props.pointsPerGraph);
-            const movingCoreExec = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.executionTime - x.preAufTime - x.postAufTime), this.props.windowSize), this.props.pointsPerGraph);
-            const movingPostAuf = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.postAufTime), this.props.windowSize), this.props.pointsPerGraph);
-
-            const hasPreAuf = movingPreAuf.some(v => v > 0);
-            const hasPostAuf = movingPostAuf.some(v => v > 0);
-
-            const datasets: ChartData<"line">["datasets"] = [];
-            datasets.push({ label: `Average Recognition Of ${this.props.windowSize}`, data: movingRecognition, borderColor: colors.recognition, backgroundColor: colors.recognition });
-            if (hasPreAuf) {
-                datasets.push({ label: `Average Pre-AUF Of ${this.props.windowSize}`, data: movingPreAuf, borderColor: colors.preAuf, backgroundColor: colors.preAuf });
-            }
-            datasets.push({ label: `Average Execution Of ${this.props.windowSize}`, data: movingCoreExec, borderColor: colors.execution, backgroundColor: colors.execution });
-            if (hasPostAuf) {
-                datasets.push({ label: `Average Post-AUF Of ${this.props.windowSize}`, data: movingPostAuf, borderColor: colors.postAuf, backgroundColor: colors.postAuf });
-            }
-
-            return {
-                labels,
-                datasets,
-            } as ChartData<"line">;
-        }
-
-        let movingExecution = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.executionTime), this.props.windowSize), this.props.pointsPerGraph);
-        return {
-            labels,
-            datasets: [
-                { label: `Average Recognition Of ${this.props.windowSize}`, data: movingRecognition, borderColor: colors.recognition, backgroundColor: colors.recognition },
-                { label: `Average Execution Of ${this.props.windowSize}`, data: movingExecution, borderColor: colors.execution, backgroundColor: colors.execution },
-            ],
-        } as ChartData<"line">;
+        return buildRunningRecognitionExecutionChartData(
+            this.props.solves,
+            this.props.windowSize,
+            this.props.pointsPerGraph,
+            this.props.use4SegmentTiming
+        );
     }
 
     isPreviousDay(date1: Date, date2: Date): boolean {
@@ -297,36 +260,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildStepPercentages() {
-        let totals: { [step in StepName]?: number } = {};
-        for (let i = 0; i < this.props.steps.length; i++) {
-            totals[this.props.steps[i]] = 0;
-        }
-
-        let recentSolves = this.props.solves.slice(-this.props.windowSize);
-        for (let i = 0; i < recentSolves.length; i++) {
-            for (let j = 0; j < this.props.steps.length; j++) {
-                totals[recentSolves[i].steps[j].name]! += recentSolves[i].steps[j].time;
-            }
-        }
-
-        let labels: string[] = [];
-        let values: number[] = [];
-
-        for (let key in totals) {
-            labels.push(key);
-            values.push(totals[key as StepName]! / recentSolves.length);
-        }
-
-        // TODO: make the colors consistent
-        let data: ChartData<"doughnut"> = {
-            labels: labels,
-            datasets: [{
-                label: `Seconds each step takes (of recent ${this.props.windowSize})`,
-                data: values
-            }]
-        }
-
-        return data;
+        return buildStepPercentagesChartData(this.props.solves, this.props.steps, this.props.windowSize);
     }
 
     buildStepAverages() {
@@ -362,271 +296,43 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildGoodBadData(goodTime: number, badTime: number) {
-        let checkIfBad = (time: number) => { return time > badTime };
-        let checkIfGood = (time: number) => { return time < goodTime }
-
-        let movingPercentBad = calculateMovingPercentage(this.props.solves.map(x => x.time), this.props.windowSize, checkIfBad);
-        let movingPercentGood = calculateMovingPercentage(this.props.solves.map(x => x.time), this.props.windowSize, checkIfGood);
-
-        let labels = [];
-        for (let i = 1; i <= movingPercentBad.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingPercentBad = reduceDataset(movingPercentBad, this.props.pointsPerGraph);
-        movingPercentGood = reduceDataset(movingPercentGood, this.props.pointsPerGraph);
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [{
-                label: `Percentage of good solves over last ${this.props.windowSize}`,
-                data: movingPercentGood
-            },
-            {
-                label: `Percentage of bad solves over last ${this.props.windowSize}`,
-                data: movingPercentBad
-            }]
-        }
-
-        return data;
+        return buildGoodBadChartData(
+            this.props.solves,
+            this.props.windowSize,
+            this.props.pointsPerGraph,
+            goodTime,
+            badTime
+        );
     }
 
     buildOllCategoryChart(ollStepIndex: number) {
-        let checkIfDot = (ollCase: string) => { return Const.OllEdgeOrientationMapping.get(ollCase) == OllEdgeOrientation.Dot };
-        let checkIfLine = (ollCase: string) => { return Const.OllEdgeOrientationMapping.get(ollCase) == OllEdgeOrientation.Line };
-        let checkIfAngle = (ollCase: string) => { return Const.OllEdgeOrientationMapping.get(ollCase) == OllEdgeOrientation.Angle };
-        let checkIfCross = (ollCase: string) => { return Const.OllEdgeOrientationMapping.get(ollCase) == OllEdgeOrientation.Cross };
-
-        let movingPercentDot = calculateMovingPercentage(this.props.solves.map(x => x.steps[ollStepIndex].case), this.props.windowSize, checkIfDot);
-        let movingPercentLine = calculateMovingPercentage(this.props.solves.map(x => x.steps[ollStepIndex].case), this.props.windowSize, checkIfLine);
-        let movingPercentAngle = calculateMovingPercentage(this.props.solves.map(x => x.steps[ollStepIndex].case), this.props.windowSize, checkIfAngle);
-        let movingPercentCross = calculateMovingPercentage(this.props.solves.map(x => x.steps[ollStepIndex].case), this.props.windowSize, checkIfCross);
-
-        let labels = [];
-        for (let i = 1; i <= movingPercentDot.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingPercentDot = reduceDataset(movingPercentDot, this.props.pointsPerGraph);
-        movingPercentLine = reduceDataset(movingPercentLine, this.props.pointsPerGraph);
-        movingPercentAngle = reduceDataset(movingPercentAngle, this.props.pointsPerGraph);
-        movingPercentCross = reduceDataset(movingPercentCross, this.props.pointsPerGraph);
-
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [
-                {
-                    label: `Percentage of OLL Dot Cases over last ${this.props.windowSize}`,
-                    data: movingPercentDot
-                },
-                {
-                    label: `Percentage of OLL Line Cases over last ${this.props.windowSize}`,
-                    data: movingPercentLine
-                },
-                {
-                    label: `Percentage of OLL Angle Cases over last ${this.props.windowSize}`,
-                    data: movingPercentAngle
-                },
-                {
-                    label: `Percentage of OLL Cross Cases over last ${this.props.windowSize}`,
-                    data: movingPercentCross
-                }
-            ]
-        }
-
-        return data;
+        return buildOllCategoryChartData(
+            this.props.solves,
+            ollStepIndex,
+            this.props.windowSize,
+            this.props.pointsPerGraph
+        );
     }
 
     buildPllCategoryChart(pllStepIndex: number) {
-        let checkIfSolved = (pllCase: string) => { return Const.PllCornerPermutationMapping.get(pllCase) == PllCornerPermutation.Solved };
-        let checkIfAdjacent = (pllCase: string) => { return Const.PllCornerPermutationMapping.get(pllCase) == PllCornerPermutation.Adjacent };
-        let checkIfDiagonal = (pllCase: string) => { return Const.PllCornerPermutationMapping.get(pllCase) == PllCornerPermutation.Diagonal };
-
-        let movingPercentSolved = calculateMovingPercentage(this.props.solves.map(x => x.steps[pllStepIndex].case), this.props.windowSize, checkIfSolved);
-        let movingPercentAdjacent = calculateMovingPercentage(this.props.solves.map(x => x.steps[pllStepIndex].case), this.props.windowSize, checkIfAdjacent);
-        let movingPercentDiagonal = calculateMovingPercentage(this.props.solves.map(x => x.steps[pllStepIndex].case), this.props.windowSize, checkIfDiagonal);
-
-        let labels = [];
-        for (let i = 1; i <= movingPercentSolved.length; i++) {
-            labels.push(i.toString())
-        };
-
-        movingPercentSolved = reduceDataset(movingPercentSolved, this.props.pointsPerGraph);
-        movingPercentAdjacent = reduceDataset(movingPercentAdjacent, this.props.pointsPerGraph);
-        movingPercentDiagonal = reduceDataset(movingPercentDiagonal, this.props.pointsPerGraph);
-
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets: [
-                {
-                    label: `Percentage of PLL Solved Corner Cases over last ${this.props.windowSize}`,
-                    data: movingPercentSolved
-                },
-                {
-                    label: `Percentage of PLL Adjacent Corner Cases over last ${this.props.windowSize}`,
-                    data: movingPercentAdjacent
-                },
-                {
-                    label: `Percentage of PLL Diagonal Corner Cases over last ${this.props.windowSize}`,
-                    data: movingPercentDiagonal
-                }
-            ]
-        }
-
-        return data;
+        return buildPllCategoryChartData(
+            this.props.solves,
+            pllStepIndex,
+            this.props.windowSize,
+            this.props.pointsPerGraph
+        );
     }
 
     buildTypicalCompare() {
-        // This chart was built using data sourced from here:
-        // https://www.cubeskills.com/blog/cfop-solve-splits-tool
-
-        // Get users's average for each step, and average overall
-        // If there are no solves, return an empty comparison chart
-        if (this.props.solves.length === 0) {
-            let labels = ['Cross', 'F2L', 'OLL', 'PLL'];
-            let zeroes = [0, 0, 0, 0];
-            let data: ChartData<"bar"> = {
-                labels,
-                datasets: [
-                    {
-                        label: `Your average by step over last ${this.props.windowSize}`,
-                        data: zeroes
-                    },
-                    {
-                        label: `Typical cuber's average by step, using your average time`,
-                        data: zeroes
-                    }
-                ]
-            };
-            return data;
-        }
-
-        let average = calculateAverage(this.props.solves.map(x => x.time).slice(-this.props.windowSize));
-        if (!Number.isFinite(average)) {
-            let labels = ['Cross', 'F2L', 'OLL', 'PLL'];
-            let zeroes = [0, 0, 0, 0];
-            let data: ChartData<"bar"> = {
-                labels,
-                datasets: [
-                    {
-                        label: `Your average by step over last ${this.props.windowSize}`,
-                        data: zeroes
-                    },
-                    {
-                        label: `Typical cuber's average by step, using your average time`,
-                        data: zeroes
-                    }
-                ]
-            };
-            return data;
-        }
-        let crossAverage = calculateAverage(this.props.solves.map(x => x.steps[0].time).slice(-this.props.windowSize));
-        let f2l1Average = calculateAverage(this.props.solves.map(x => x.steps[1].time).slice(-this.props.windowSize));
-        let f2l2Average = calculateAverage(this.props.solves.map(x => x.steps[2].time).slice(-this.props.windowSize));
-        let f2l3Average = calculateAverage(this.props.solves.map(x => x.steps[3].time).slice(-this.props.windowSize));
-        let f2l4Average = calculateAverage(this.props.solves.map(x => x.steps[4].time).slice(-this.props.windowSize));
-        let ollAverage = calculateAverage(this.props.solves.map(x => x.steps[5].time).slice(-this.props.windowSize));
-        let pllAverage = calculateAverage(this.props.solves.map(x => x.steps[6].time).slice(-this.props.windowSize));
-        let f2lAverage = f2l1Average + f2l2Average + f2l3Average + f2l4Average;
-        let yourAverages = [crossAverage, f2lAverage, ollAverage, pllAverage];
-
-        // Get typical solver's average for each step, and overall
-        let typicalAverages = getTypicalAverages(average);
-
-        // Get percent differences
-        //let differences = [0, 0, 0, 0]
-        //let colors = ["green", "green", "green", "green"]
-        //for (let i = 0; i < 4; i++) {
-        //    differences[i] = (yourAverages[i] - typicalAverages[i]) / typicalAverages[i] * 100;
-        //    if (differences[i] >= 0) {
-        //        colors[i] = "red";
-        //    }
-        //}
-
-        let labels = ['Cross', 'F2L', 'OLL', 'PLL'];
-        let data: ChartData<"bar"> = {
-            labels,
-            datasets: [
-                {
-                    label: `Your average by step over last ${this.props.windowSize}`,
-                    data: yourAverages
-                },
-                {
-                    label: `Typical cuber's average by step, using your average time`,
-                    data: typicalAverages
-                },
-                //{
-                //    label: `Percent difference between your solves and typical solvers (lower is good)`,
-                //    data: differences,
-                //    backgroundColor: colors
-                //}
-            ]
-        }
-
-        return data;
+        return buildTypicalCompareChartData(this.props.solves, this.props.windowSize);
     }
 
     buildHistogramData() {
-        let recentSolves = this.props.solves.map(x => x.time).slice(-this.props.windowSize);
-
-        let histogram = new Map<number, number>();
-
-        for (let i = 0; i < recentSolves.length; i++) {
-            let val: number = Math.trunc(recentSolves[i]);
-            if (!histogram.get(val)) {
-                histogram.set(val, 0);
-            }
-            histogram.set(val, histogram.get(val)! + 1)
-        }
-
-        let arr = Array.from(histogram).sort((a, b) => {
-            return a[0] - b[0];
-        })
-
-        let labels = arr.map(a => a[0]);
-        let values = arr.map(a => a[1]);
-
-        let data: ChartData<"bar"> = {
-            labels: labels,
-            datasets: [{
-                label: `Number of solves by time (of recent ${this.props.windowSize})`,
-                data: values
-            }]
-        }
-
-        return data;
+        return buildHistogramChartData(this.props.solves, this.props.windowSize);
     }
 
     buildInspectionData() {
-        let recentSolves = this.props.solves.slice(-this.props.windowSize);
-        recentSolves.sort((a, b) => {
-            return a.inspectionTime - b.inspectionTime;
-        })
-
-        let chunkedArr: Solve[][] = splitIntoChunks(recentSolves, Const.InspectionGraphChunks);
-
-        let labels: string[] = [];
-        let values: number[] = [];
-
-        for (let i = 0; i < Const.InspectionGraphChunks; i++) {
-            labels.push("~" + calculateAverage(chunkedArr[i].map(x => x.inspectionTime)).toFixed(2).toString());
-            values.push(calculateAverage(chunkedArr[i].map(x => x.time)));
-        }
-
-        let data: ChartData<"bar"> = {
-            labels: labels,
-            datasets: [{
-                label: `Solve time by inspection time (of recent ${this.props.windowSize})`,
-                data: values
-            }]
-        }
-
-        return data;
+        return buildInspectionChartData(this.props.solves, this.props.windowSize);
     }
 
     buildRecordDataset(dates: Date[], times: number[]) {
@@ -727,44 +433,11 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildRunningColorPercentages() {
-        const colors = [
-            { color: CrossColor.White, label: 'White', borderColor: 'Black', backgroundColor: 'Black' },
-            { color: CrossColor.Yellow, label: 'Yellow', borderColor: 'Yellow', backgroundColor: 'Yellow' },
-            { color: CrossColor.Red, label: 'Red', borderColor: 'Red', backgroundColor: 'Red' },
-            { color: CrossColor.Orange, label: 'Orange', borderColor: 'Orange', backgroundColor: 'Orange' },
-            { color: CrossColor.Blue, label: 'Blue', borderColor: 'Blue', backgroundColor: 'Blue' },
-            { color: CrossColor.Green, label: 'Green', borderColor: 'Green', backgroundColor: 'Green' }
-        ];
-
-        // Check if there are any 'Unknown' color data points
-        const hasUnknownColor = this.props.solves.some(solve => solve.crossColor === CrossColor.Unknown);
-        if (hasUnknownColor) {
-            colors.push({ color: CrossColor.Unknown, label: 'Unknown', borderColor: 'Purple', backgroundColor: 'Purple' });
-        }
-
-        let datasets = colors.map(({ color, label, borderColor, backgroundColor }) => {
-            let movingPercent = calculateMovingPercentage(this.props.solves.map(x => x.crossColor), this.props.windowSize, (crossColor: CrossColor) => crossColor == color);
-            movingPercent = reduceDataset(movingPercent, this.props.pointsPerGraph);
-            return {
-                label: `Percentage of solves with ${label} cross over last ${this.props.windowSize}`,
-                data: movingPercent,
-                borderColor,
-                backgroundColor
-            };
-        });
-
-        let labels = [];
-        for (let i = 1; i <= datasets[0].data.length; i++) {
-            labels.push(i.toString());
-        }
-        labels = reduceDataset(labels, this.props.pointsPerGraph);
-
-        let data: ChartData<"line"> = {
-            labels,
-            datasets
-        };
-
-        return data;
+        return buildRunningColorPercentagesChartData(
+            this.props.solves,
+            this.props.windowSize,
+            this.props.pointsPerGraph
+        );
     }
 
     buildCaseData() {
@@ -983,7 +656,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         return data;
     }
 
-    buildBestSolves() {
+    buildBestSolves(cachedData?: FastestSolve[]) {
         const cols = [
             { key: 'time', name: 'Time' },
             { key: 'date', name: 'Date' },
@@ -991,21 +664,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             { key: 'id', name: 'ID' },
             { key: 'fullstep', name: "Full Step" }
         ];
-
-        let solveCopy: Solve[] = structuredClone(this.props.solves);
-        let fastest: Solve[] = solveCopy.sort((a: Solve, b: Solve) => a.time - b.time).slice(0, Const.FastestSolvesCount);
-        let reduced: FastestSolve[] = fastest.map(x => {
-            return {
-                date: x.date.toDateString(),
-                time: x.time.toFixed(3),
-                scramble: x.scramble,
-                id: x.id,
-                fullstep: x.isFullStep ? "Yes 🔥" : "No",
-                source: x.source,
-                rawSourceId: x.rawSourceId
-            } as FastestSolve;
-        });
-
+        const reduced = cachedData ?? this._computeBestSolvesData();
         return (<DataGrid rows={reduced} columns={cols} onCellClick={this.openSolveSource} />);
     }
 
@@ -1029,62 +688,57 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     render() {
-        // TODO: is there a better spot to put this?
-        ChartJS.register(CategoryScale);
-
+        if (!this._chartDataCache || this._propsChanged()) {
+            this._chartDataCache = this._computeAllChartData();
+            this._updatePropsRefs();
+        }
+        const c = this._chartDataCache;
+        const p = this.props;
         let charts: JSX.Element[] = [];
 
-        // Check if OLL and PLL are selected
-        let ollIndex: number = this.props.steps.indexOf(StepName.OLL);
-        let pllIndex: number = this.props.steps.indexOf(StepName.PLL);
+        let ollIndex: number = p.steps.indexOf(StepName.OLL);
+        let pllIndex: number = p.steps.indexOf(StepName.PLL);
 
-        // Add charts that require exactly one step to be chosen
-        if (this.props.steps.length == 1 && (this.props.steps[0] === StepName.OLL || this.props.steps[0] === StepName.PLL)) {
-            charts.push(buildChartHtml(<Bar data={this.buildCaseData()} options={createOptions(ChartType.Bar, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Recognition Time and Execution Time per Case", "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."));
-            charts.push(buildChartHtml(this.buildAlgorithmPracticeTable(), "Algorithm Practice", "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."));
+        if (p.steps.length == 1 && (p.steps[0] === StepName.OLL || p.steps[0] === StepName.PLL)) {
+            charts.push(buildChartHtml(<Bar data={c.caseData as ChartData<"bar">} options={createOptions(ChartType.Bar, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Recognition Time and Execution Time per Case", "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."));
+            charts.push(buildChartHtml(c.algorithmPracticeTable as JSX.Element, "Algorithm Practice", "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."));
         }
 
-        // Add remaining charts
-        charts.push(buildChartHtml(<Line data={this.buildRunningAverageData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Time", "This chart shows your running average"));
-        charts.push(buildChartHtml(<Line data={this.buildRunningRecognitionExecution()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
-        charts.push(buildChartHtml(<Bar data={this.buildHistogramData()} options={createOptions(ChartType.Bar, "Time (s)", "Count", this.props.useLogScale)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
-        charts.push(buildChartHtml(<Line data={this.buildRunningTpsData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
-        charts.push(buildChartHtml(<Line data={this.buildRunningTurnsData()} options={createOptions(ChartType.Line, "Solve Number", "Turns", this.props.useLogScale)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
-        charts.push(buildChartHtml(<Line data={this.buildRunningEfficiencyData()} options={createOptions(ChartType.Line, "Solve Number", "Efficiency %", this.props.useLogScale)} />, "Move Efficiency", "This chart shows the ratio of simplified (after cancelling redundant same-face moves) to actual move count. 100% means no wasted moves."));
-        charts.push(buildChartHtml(this.buildBestSolves(), `Top ${Const.FastestSolvesCount} Fastest Solves`, `This shows your ${Const.FastestSolvesCount} fastest solves, given the filters`));
-        charts.push(buildChartHtml(<Line data={this.buildRunningStdDevData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Standard Deviation", "This chart shows your running average's standard deviation"));
-        charts.push(buildChartHtml(<Line data={this.buildRunningColorPercentages()} options={createOptions(ChartType.Line, "Solve Number", "Percentage", this.props.useLogScale)} />, "Percentage of Solves by Cross Color", "This chart shows what percentage of solves started with cross on White/Yellow/etc..."));
-        charts.push(buildChartHtml(<Bar data={this.buildInspectionData()} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", this.props.useLogScale)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
-        charts.push(buildChartHtml(<Line data={this.buildStepAverages()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
-        charts.push(buildChartHtml(<Line data={this.buildRunningInspectionData()} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", this.props.useLogScale)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
-        charts.push(buildChartHtml(this.buildAllStreakData(), "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
-        charts.push(buildChartHtml(<Line data={this.buildDailyRecordData()} options={createOptions(ChartType.Line, "Date", "Time (s)", this.props.useLogScale, true, true)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
-        charts.push(buildChartHtml(this.buildCurrentRecords(), "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
+        charts.push(buildChartHtml(<Line data={c.runningAverage as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Time", "This chart shows your running average"));
+        charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
+        charts.push(buildChartHtml(<Bar data={c.histogram as ChartData<"bar">} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
+        charts.push(buildChartHtml(<Line data={c.runningTps as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
+        charts.push(buildChartHtml(<Line data={c.runningTurns as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
+        charts.push(buildChartHtml(<Line data={c.runningEfficiency as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Efficiency %", p.useLogScale)} />, "Move Efficiency", "This chart shows the ratio of simplified (after cancelling redundant same-face moves) to actual move count. 100% means no wasted moves."));
+        charts.push(buildChartHtml(this.buildBestSolves(c.bestSolvesData as FastestSolve[]), `Top ${Const.FastestSolvesCount} Fastest Solves`, `This shows your ${Const.FastestSolvesCount} fastest solves, given the filters`));
+        charts.push(buildChartHtml(<Line data={c.runningStdDev as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Standard Deviation", "This chart shows your running average's standard deviation"));
+        charts.push(buildChartHtml(<Line data={c.runningColorPercentages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "Percentage of Solves by Cross Color", "This chart shows what percentage of solves started with cross on White/Yellow/etc..."));
+        charts.push(buildChartHtml(<Bar data={c.inspection as ChartData<"bar">} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
+        charts.push(buildChartHtml(<Line data={c.stepAverages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
+        charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
+        charts.push(buildChartHtml(c.allStreakData as JSX.Element, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
+        charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        charts.push(buildChartHtml(c.currentRecords as JSX.Element, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
-        // Add charts that require OLL
         if (ollIndex != -1) {
-            charts.push(buildChartHtml(<Line data={this.buildOllCategoryChart(ollIndex)} options={createOptions(ChartType.Line, "Solve Number", "Percentage", this.props.useLogScale)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));
+            charts.push(buildChartHtml(<Line data={c.ollCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));
         }
 
-        // Add charts that require PLL
         if (pllIndex != -1) {
-            charts.push(buildChartHtml(<Line data={this.buildPllCategoryChart(pllIndex)} options={createOptions(ChartType.Line, "Solve Number", "Percentage", this.props.useLogScale)} />, "PLL Corner Permutation", "This chart shows your percentage of PLL cases by corner permutation"));
+            charts.push(buildChartHtml(<Line data={c.pllCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "PLL Corner Permutation", "This chart shows your percentage of PLL cases by corner permutation"));
         }
 
-        // Add charts that require CFOP method (and all of its steps) to be chosen
-        if (this.props.methodName == MethodName.CFOP && this.props.steps.length == Const.MethodSteps[MethodName.CFOP].length) {
-            charts.push(buildChartHtml(<Bar data={this.buildTypicalCompare()} options={createOptions(ChartType.Bar, "Step Name", "Time (s)", this.props.useLogScale, false)} />, "Time Per Step, Compared to Typical Solver", "This chart shows how long each step takes, compared to a typical solver at your average. The 'typical' data is calculated based on a tool provided from Felix Zemdegs's CubeSkills blog"));
+        if (p.methodName == MethodName.CFOP && p.steps.length == Const.MethodSteps[MethodName.CFOP].length) {
+            charts.push(buildChartHtml(<Bar data={c.typicalCompare as ChartData<"bar">} options={createOptions(ChartType.Bar, "Step Name", "Time (s)", p.useLogScale, false)} />, "Time Per Step, Compared to Typical Solver", "This chart shows how long each step takes, compared to a typical solver at your average. The 'typical' data is calculated based on a tool provided from Felix Zemdegs's CubeSkills blog"));
         }
 
-        // Add charts that require 2+ steps
-        if (this.props.steps.length >= 2) {
-            charts.push(buildChartHtml(<Doughnut data={this.buildStepPercentages()} options={createOptions(ChartType.Doughnut, "", "", this.props.useLogScale)} />, "Percentage of the Solve Each Step Took", "This chart shows what percentage of your solve each step takes"));
+        if (p.steps.length >= 2) {
+            charts.push(buildChartHtml(<Doughnut data={c.stepPercentages as ChartData<"doughnut">} options={createOptions(ChartType.Doughnut, "", "", p.useLogScale)} />, "Percentage of the Solve Each Step Took", "This chart shows what percentage of your solve each step takes"));
         }
 
-        // Add charts that require all steps to be chosen
-        if (this.props.steps.length == Const.MethodSteps[this.props.methodName].length) {
-            charts.push(buildChartHtml(<Line data={this.buildGoodBadData(this.props.goodTime, this.props.badTime)} options={createOptions(ChartType.Line, "Solve Number", "Percentage", this.props.useLogScale)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
-            charts.push(buildChartHtml(<Line data={this.buildRecordHistory()} options={createOptions(ChartType.Line, "Date", "Time (s)", this.props.useLogScale, true, true)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."))
+        if (p.steps.length == Const.MethodSteps[p.methodName].length) {
+            charts.push(buildChartHtml(<Line data={c.goodBad as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
+            charts.push(buildChartHtml(<Line data={c.recordHistory as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."))
         }
 
         let chartRow = (

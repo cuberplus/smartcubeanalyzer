@@ -1,5 +1,5 @@
-import React, { RefObject } from "react";
-import { FileInputProps, FileInputState, MethodName, Solve } from "../Helpers/Types";
+import React from "react";
+import { FileInputProps, FileInputState, Solve } from "../Helpers/Types";
 import { parseCsv } from "../Helpers/CsvParser";
 import { FilterPanel } from "./FilterPanel";
 import { GetDemoData } from "../Helpers/SampleData"
@@ -11,7 +11,6 @@ import ReactGA from 'react-ga4';
 
 export class FileInput extends React.Component<FileInputProps, FileInputState> {
     state: FileInputState = { solves: [], showHelpModal: false };
-    filterPanel: RefObject<FilterPanel> = React.createRef();
 
     constructor(props: FileInputProps) {
         super(props);
@@ -39,19 +38,18 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             const solveList: Solve[] = results.flat();
             solveList.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-            this.setState({ solves: solveList });
+            const method = CalculateMostUsedMethod(solveList);
+            const suggestedMethod: Option = { label: method, value: method };
+            const suggestedSessions = CalculateAllSessionOptions(solveList);
+            const suggestedWindowSize = CalculateWindowSize(solveList.length);
 
-            let method = CalculateMostUsedMethod(solveList);
-            let newOption: Option = { label: method, value: method };
-            this.filterPanel.current?.methodChanged(newOption);
-
-            let sessions = CalculateAllSessionOptions(solveList);
-            this.filterPanel.current?.chosenSessionsChanged(sessions);
-
-            let windowSize = CalculateWindowSize(solveList.length);
-            this.filterPanel.current?.windowSizeChanged(windowSize);
-
-            this.filterPanel.current?.setTestAlert(false);
+            this.setState({
+                solves: solveList,
+                suggestedMethod,
+                suggestedSessions,
+                suggestedWindowSize,
+                showTestAlert: false
+            });
 
             ReactGA.event({
                 category: 'DataLoaded',
@@ -62,27 +60,46 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
     };
 
     showTestData() {
-        let file = GetDemoData();
-        let solveList: Solve[] = parseCsv(file, ',');
-        this.setState({ solves: solveList });
+        // #region agent log
+        fetch('http://127.0.0.1:7299/ingest/abb27326-ebe7-4354-be17-843150181f69',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'282053'},body:JSON.stringify({sessionId:'282053',location:'FileInput.tsx:showTestData',message:'showTestData called',data:{},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        GetDemoData()
+            .then((csv) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7299/ingest/abb27326-ebe7-4354-be17-843150181f69',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'282053'},body:JSON.stringify({sessionId:'282053',location:'FileInput.tsx:after GetDemoData',message:'fetch succeeded',data:{csvLength:csv?.length},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                const solveList: Solve[] = parseCsv(csv, ',');
+                // #region agent log
+                fetch('http://127.0.0.1:7299/ingest/abb27326-ebe7-4354-be17-843150181f69',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'282053'},body:JSON.stringify({sessionId:'282053',location:'FileInput.tsx:after parseCsv',message:'parseCsv succeeded',data:{solveCount:solveList?.length},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
+                const method = CalculateMostUsedMethod(solveList);
+                const suggestedMethod: Option = { label: method, value: method };
+                const suggestedSessions = CalculateAllSessionOptions(solveList);
+                const suggestedWindowSize = CalculateWindowSize(solveList.length);
 
-        let method = CalculateMostUsedMethod(solveList);
-        let newOption: Option = { label: method, value: method };
-        this.filterPanel.current?.methodChanged(newOption);
+                // #region agent log
+                fetch('http://127.0.0.1:7299/ingest/abb27326-ebe7-4354-be17-843150181f69',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'282053'},body:JSON.stringify({sessionId:'282053',location:'FileInput.tsx:before setState',message:'about to setState with test data',data:{solveCount:solveList.length,sessionsCount:suggestedSessions?.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
+                this.setState({
+                    solves: solveList,
+                    suggestedMethod,
+                    suggestedSessions,
+                    suggestedWindowSize,
+                    showTestAlert: true
+                });
 
-        let sessions = CalculateAllSessionOptions(solveList);
-        this.filterPanel.current?.chosenSessionsChanged(sessions);
-
-        let windowSize = CalculateWindowSize(solveList.length);
-        this.filterPanel.current?.windowSizeChanged(windowSize);
-
-        this.filterPanel.current?.setTestAlert(true);
-
-        ReactGA.event({
-            category: 'DataLoaded',
-            action: 'Loaded Test Data',
-            value: this.state.solves.length
-        });
+                ReactGA.event({
+                    category: 'DataLoaded',
+                    action: 'Loaded Test Data',
+                    value: solveList.length
+                });
+            })
+            .catch((err) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7299/ingest/abb27326-ebe7-4354-be17-843150181f69',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'282053'},body:JSON.stringify({sessionId:'282053',location:'FileInput.tsx:showTestData catch',message:'demo load failed',data:{err:String(err?.message || err)},timestamp:Date.now(),hypothesisId:'A-B-C'})}).catch(()=>{});
+                // #endregion
+                console.error('Failed to load demo data:', err);
+            });
     }
 
     helpButtonClicked() {
@@ -129,7 +146,13 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                         </Card>
                     </Row>
 
-                    <FilterPanel solves={this.state.solves} ref={this.filterPanel} />
+                    <FilterPanel
+                        solves={this.state.solves}
+                        suggestedMethod={this.state.suggestedMethod}
+                        suggestedSessions={this.state.suggestedSessions}
+                        suggestedWindowSize={this.state.suggestedWindowSize}
+                        showTestAlert={this.state.showTestAlert}
+                    />
                 </Container>
             </div >
         )
