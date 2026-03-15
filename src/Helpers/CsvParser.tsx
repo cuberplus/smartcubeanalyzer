@@ -181,7 +181,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "solution_rotation": (obj, value) => {
             obj.crossColor = Const.crossMappings.get(value) ?? CrossColor.Unknown;
             if (obj.crossColor == CrossColor.Unknown) {
-                console.log("Unknown solution rotation: ", value);
+                //console.log("Unknown solution rotation: ", value);
                 //obj.isCorrupt = true;
             };
         },
