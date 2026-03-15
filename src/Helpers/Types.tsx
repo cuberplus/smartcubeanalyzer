@@ -128,12 +128,20 @@ export interface AppState {
 }
 
 export interface FilterPanelProps {
-    solves: Solve[]
+    solves: Solve[],
+    suggestedMethod?: Option,
+    suggestedSessions?: Option[],
+    suggestedWindowSize?: number,
+    showTestAlert?: boolean
 }
 
 export interface FilterPanelState {
     allSolves: Solve[],
     filteredSolves: Solve[],
+    compressedSolves: Solve[],
+    lastAppliedSolves: Solve[],
+    lastAppliedFilters: Filters | null,
+    lastAppliedWindowSize: number,
     filters: Filters,
 
     // Objects required for filter objects to work
@@ -163,7 +171,11 @@ export interface FileInputProps {
 
 export interface FileInputState {
     solves: Solve[],
-    showHelpModal: boolean
+    showHelpModal: boolean,
+    suggestedMethod?: Option,
+    suggestedSessions?: Option[],
+    suggestedWindowSize?: number,
+    showTestAlert?: boolean
 }
 
 export interface ChartPanelProps {
