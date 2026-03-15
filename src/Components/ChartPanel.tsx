@@ -163,14 +163,23 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             const movingPreAuf = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.preAufTime), this.props.windowSize), this.props.pointsPerGraph);
             const movingCoreExec = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.executionTime - x.preAufTime - x.postAufTime), this.props.windowSize), this.props.pointsPerGraph);
             const movingPostAuf = reduceDataset(calculateMovingAverage(this.props.solves.map(x => x.postAufTime), this.props.windowSize), this.props.pointsPerGraph);
+
+            const hasPreAuf = movingPreAuf.some(v => v > 0);
+            const hasPostAuf = movingPostAuf.some(v => v > 0);
+
+            const datasets: ChartData<"line">["datasets"] = [];
+            datasets.push({ label: `Average Recognition Of ${this.props.windowSize}`, data: movingRecognition, borderColor: colors.recognition, backgroundColor: colors.recognition });
+            if (hasPreAuf) {
+                datasets.push({ label: `Average Pre-AUF Of ${this.props.windowSize}`, data: movingPreAuf, borderColor: colors.preAuf, backgroundColor: colors.preAuf });
+            }
+            datasets.push({ label: `Average Execution Of ${this.props.windowSize}`, data: movingCoreExec, borderColor: colors.execution, backgroundColor: colors.execution });
+            if (hasPostAuf) {
+                datasets.push({ label: `Average Post-AUF Of ${this.props.windowSize}`, data: movingPostAuf, borderColor: colors.postAuf, backgroundColor: colors.postAuf });
+            }
+
             return {
                 labels,
-                datasets: [
-                    { label: `Average Recognition Of ${this.props.windowSize}`, data: movingRecognition, borderColor: colors.recognition, backgroundColor: colors.recognition },
-                    { label: `Average Pre-AUF Of ${this.props.windowSize}`, data: movingPreAuf, borderColor: colors.preAuf, backgroundColor: colors.preAuf },
-                    { label: `Average Execution Of ${this.props.windowSize}`, data: movingCoreExec, borderColor: colors.execution, backgroundColor: colors.execution },
-                    { label: `Average Post-AUF Of ${this.props.windowSize}`, data: movingPostAuf, borderColor: colors.postAuf, backgroundColor: colors.postAuf },
-                ],
+                datasets,
             } as ChartData<"line">;
         }
 
@@ -807,16 +816,29 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         }
         cases.sort((a, b) => (b.recognitionTime + b.preAufTime + b.executionTime + b.postAufTime) - (a.recognitionTime + a.preAufTime + a.executionTime + a.postAufTime));
 
-        const labels = cases.map(x => x.label + " (" + x.avgMoves.toFixed(1) + " moves)");
+        const labels = cases.map(x => x.label);
         if (this.props.use4SegmentTiming) {
+            const recognitionValues = cases.map(x => x.recognitionTime);
+            const preAufValues = cases.map(x => x.preAufTime);
+            const executionValues = cases.map(x => x.executionTime);
+            const postAufValues = cases.map(x => x.postAufTime);
+
+            const hasPreAuf = preAufValues.some(v => v > 0);
+            const hasPostAuf = postAufValues.some(v => v > 0);
+
+            const datasets: ChartData<"bar">["datasets"] = [];
+            datasets.push({ label: `Recognition (past ${this.props.windowSize})`, data: recognitionValues, backgroundColor: colors.recognition });
+            if (hasPreAuf) {
+                datasets.push({ label: `Pre-AUF (past ${this.props.windowSize})`, data: preAufValues, backgroundColor: colors.preAuf });
+            }
+            datasets.push({ label: `Execution (past ${this.props.windowSize})`, data: executionValues, backgroundColor: colors.execution });
+            if (hasPostAuf) {
+                datasets.push({ label: `Post-AUF (past ${this.props.windowSize})`, data: postAufValues, backgroundColor: colors.postAuf });
+            }
+
             return {
                 labels,
-                datasets: [
-                    { label: `Recognition (past ${this.props.windowSize})`, data: cases.map(x => x.recognitionTime), backgroundColor: colors.recognition },
-                    { label: `Pre-AUF (past ${this.props.windowSize})`, data: cases.map(x => x.preAufTime), backgroundColor: colors.preAuf },
-                    { label: `Execution (past ${this.props.windowSize})`, data: cases.map(x => x.executionTime), backgroundColor: colors.execution },
-                    { label: `Post-AUF (past ${this.props.windowSize})`, data: cases.map(x => x.postAufTime), backgroundColor: colors.postAuf },
-                ],
+                datasets,
             } as ChartData<"bar">;
         }
         const recognitionValues = cases.map(x => x.recognitionTime);
