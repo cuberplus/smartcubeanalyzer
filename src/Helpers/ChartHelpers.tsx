@@ -38,7 +38,15 @@ function applyDarkScaleOptions(scales: Record<string, unknown>): void {
     for (const key of Object.keys(scales)) {
         const s = scales[key] as Record<string, unknown>;
         if (s && typeof s === 'object') {
-            scales[key] = { ...s, ...darkScaleOptions };
+            const existingGrid = (s.grid as Record<string, unknown>) || {};
+            const existingTicks = (s.ticks as Record<string, unknown>) || {};
+            const existingTitle = (s.title as Record<string, unknown>) || {};
+            scales[key] = {
+                ...s,
+                grid: { ...existingGrid, ...darkScaleOptions.grid },
+                ticks: { ...existingTicks, ...darkScaleOptions.ticks },
+                title: { ...existingTitle, ...darkScaleOptions.title }
+            };
         }
     }
 }
