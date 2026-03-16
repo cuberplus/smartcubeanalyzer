@@ -223,7 +223,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 source: solve.source,
                 rawSourceId: solve.rawSourceId,
                 rawSource: solve.rawSource,
-                time: stepTime,
+                time: solve.time,
                 date: solve.date,
                 crossColor: solve.crossColor,
                 scramble: solve.scramble,

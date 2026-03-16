@@ -165,7 +165,7 @@ export function stripRotationsFromMoveString(movesString: string | undefined | n
 }
 
 function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
-
+    
     // Replace commas inside [...] so split(splitter) does not break on e.g. step case "[FL,BR]->FR 30".
     // Preserves bracket content (including timestamps in step_N_recorded_moves) for AUF parsing.
     const normalized = stringVal.trim().replace(/\[[^\]]*\]/g, (m) => m.replace(/,/g, COMMA_PLACEHOLDER));
@@ -217,15 +217,57 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     let formedArr = rest.map((item) => {
         let obj = GetEmptySolve();
 
+        // Track Cubeast pickup/putdown/solving times (ms) while parsing a row.
+        let rawTimeMs: number | null = null;
+        let pickupTimeMs: number | null = null;
+        let putdownTimeMs: number | null = null;
+        let solvingTimeMs: number | null = null;
+
         keys.forEach((key, index) => {
+            const value = item[index];
+            if (key === "time") {
+                rawTimeMs = Number(value) || 0;
+            } else if (key === "pickup_time") {
+                pickupTimeMs = Number(value) || 0;
+            } else if (key === "putdown_time") {
+                putdownTimeMs = Number(value) || 0;
+            } else if (key === "solving_time") {
+                solvingTimeMs = Number(value) || 0;
+            }
+
             if (key.startsWith("step_")) {
                 const stepIndex = +key[5];
                 const stepKey = key.split("_").slice(2).join("_");
-                stepKeyMap[stepKey]?.(obj.steps[stepIndex], item[index]);
+                stepKeyMap[stepKey]?.(obj.steps[stepIndex], value);
             } else {
-                keyMap[key]?.(obj, item[index]);
+                keyMap[key]?.(obj, value);
             }
         });
+
+        // After parsing the row, adjust Cubeast Solve.time to represent in-hand time:
+        // 1) Prefer solving_time when present and > 0.
+        // 2) Else, if we have time plus pickup/putdown, subtract them.
+        // 3) Else, fall back to raw time.
+        if (obj.source === 'cubeast') {
+            let finalMs: number | null = null;
+            if (solvingTimeMs != null && solvingTimeMs > 0) {
+                finalMs = solvingTimeMs;
+            } else if (rawTimeMs != null && rawTimeMs > 0 &&
+                pickupTimeMs != null && putdownTimeMs != null &&
+                (pickupTimeMs > 0 || putdownTimeMs > 0)) {
+                finalMs = rawTimeMs - pickupTimeMs - putdownTimeMs;
+            } else if (rawTimeMs != null && rawTimeMs > 0) {
+                finalMs = rawTimeMs;
+            }
+
+            if (finalMs != null) {
+                const sec = finalMs / 1000;
+                obj.time = sec;
+                if (sec < 1) {
+                    obj.isCorrupt = true;
+                }
+            }
+        }
 
         let prevEndTsMs: number | null = null;
         for (let i = 0; i < obj.steps.length; i++) {

@@ -413,7 +413,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         let single = this.props.solves.map(x => x.time);
         let ao5 = calculateMovingAverage(this.props.solves.map(x => x.time), 5);
         let ao12 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 12, 1);
-        //let ao100 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 100, 5);
+        let ao100 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 100, 5);
         //let ao1000 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 1000, 50);
 
         // Start initial records
@@ -421,7 +421,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             single: this.buildRecordDataset(dates, single),
             ao5: this.buildRecordDataset(dates.slice(4), ao5),
             ao12: this.buildRecordDataset(dates.slice(11), ao12),
-            //ao100: this.buildRecordDataset(dates.slice(99), ao100),
+            ao100: this.buildRecordDataset(dates.slice(99), ao100),
             //ao1000: this.buildRecordDataset(dates.slice(999), ao1000)
         };
 
@@ -440,10 +440,10 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                     label: `Record Ao12`,
                     data: records.ao12
                 },
-                //{
-                //    label: `Record Ao100`,
-                //    data: records.ao100
-                //},
+                {
+                    label: `Record Ao100`,
+                    data: records.ao100
+                },
                 //{
                 //    label: `Record Ao1000`,
                 //    data: records.ao1000
