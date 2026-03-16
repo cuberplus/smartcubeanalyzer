@@ -629,6 +629,8 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         const needOll = this.props.methodName === MethodName.CFOP;
         const needPll = this.props.methodName === MethodName.CFOP || this.props.methodName === MethodName.CFOP_2OLL;
 
+        const allStepsSelected = this.props.steps.length === Const.MethodSteps[this.props.methodName].length;
+
         const ollMap = needOll ? new Map(computeCaseFailureStats(solves, 5).map((s: CaseStats) => [s.caseName, s])) : undefined;
         const pllMap = needPll ? new Map(computeCaseFailureStats(solves, 6).map((s: CaseStats) => [s.caseName, s])) : undefined;
 
@@ -653,7 +655,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         ];
         const needOllForChart = this.props.methodName === MethodName.CFOP;
         const needPllForChart = this.props.methodName === MethodName.CFOP || this.props.methodName === MethodName.CFOP_2OLL;
-        if (needOllForChart || needPllForChart) {
+        if (allStepsSelected && (needOllForChart || needPllForChart)) {
             const ollRate = needOllForChart
                 ? reduceDataset(
                     calculateMovingPercentage(effList, this.props.windowSize, (e) => e.hadOllFailure),
