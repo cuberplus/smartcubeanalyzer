@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import moment from "moment";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
@@ -564,6 +565,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 <Container>
                     {this.createFilterHtml(
                         <Select
+                            classNamePrefix="method-select"
                             options={this.getMethodOptions()}
                             value={this.state.method}
                             onChange={this.methodChanged.bind(this)}
@@ -742,13 +744,23 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
-                        <DatePicker selected={this.state.filters.startDate} onChange={this.setStartDate.bind(this)} />,
+                        <DatePicker
+                            selected={this.state.filters.startDate}
+                            onChange={this.setStartDate.bind(this)}
+                            popperContainer={({ children }) => createPortal(children, document.body)}
+                            popperProps={{ strategy: "fixed" }}
+                        />,
                         "Pick Start Date",
                         "Choose start date"
                     )}
 
                     {this.createFilterHtml(
-                        <DatePicker selected={this.state.filters.endDate} onChange={this.setEndDate.bind(this)} />,
+                        <DatePicker
+                            selected={this.state.filters.endDate}
+                            onChange={this.setEndDate.bind(this)}
+                            popperContainer={({ children }) => createPortal(children, document.body)}
+                            popperProps={{ strategy: "fixed" }}
+                        />,
                         "Pick End Date",
                         "Choose end date"
                     )}

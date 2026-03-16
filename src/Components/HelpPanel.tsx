@@ -11,7 +11,7 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                 size="xl"
             >
                 <Modal.Header closeButton>
-                    <Modal.Title>Cubeast Analyzer</Modal.Title>
+                    <Modal.Title>Smartcube Analyzer</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <section className="mb-4">
@@ -73,15 +73,15 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                     </section>
 
                     <section className="mb-4">
-                        <h5>Upload to Cubeast Analyzer</h5>
+                        <h5>Upload to Smartcube Analyzer</h5>
                         <p>
-                            Finally, upload one or more CSV files (from Cubeast and/or Acubemy) to Cubeast Analyzer to see your combined stats.
+                            Finally, upload one or more CSV files (from Cubeast and/or Acubemy) to Smartcube Analyzer to see your combined stats.
                         </p>
                         <div className="text-center">
                             <img
                                 className="img-fluid w-75"
                                 src={require("../Assets/AnalyzerSteps.png")}
-                                alt="Steps to upload CSV files into Cubeast Analyzer"
+                                alt="Steps to upload CSV files into Smartcube Analyzer"
                             />
                         </div>
                     </section>

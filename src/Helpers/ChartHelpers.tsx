@@ -27,7 +27,23 @@ export function buildChartHtml(chart: JSX.Element, title: string, tooltip: strin
     )
 }
 
-export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false) {
+const darkScaleOptions = {
+    grid: { color: 'rgba(255,255,255,0.15)' },
+    ticks: { color: 'rgba(255,255,255,0.8)' },
+    title: { color: 'rgba(255,255,255,0.8)' }
+};
+
+function applyDarkScaleOptions(scales: Record<string, unknown>): void {
+    if (!scales) return;
+    for (const key of Object.keys(scales)) {
+        const s = scales[key] as Record<string, unknown>;
+        if (s && typeof s === 'object') {
+            scales[key] = { ...s, ...darkScaleOptions };
+        }
+    }
+}
+
+export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false, isDark: boolean = false) {
     let genericOptions: any = {
         maintainAspectRatio: false
     };
@@ -103,6 +119,10 @@ export function createOptions(chartType: ChartType, xAxis: string, yAxis: string
             break;
         default:
             console.log("Unknown chart type: " + chartType)
+    }
+
+    if (isDark && chartOptions.scales) {
+        applyDarkScaleOptions(chartOptions.scales);
     }
 
     return { ...chartOptions, ...genericOptions };

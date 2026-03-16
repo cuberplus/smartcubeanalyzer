@@ -8,6 +8,7 @@ import { HelpPanel } from "./HelpPanel";
 import { CalculateMostUsedMethod, CalculateWindowSize, CalculateAllSessionOptions } from "../Helpers/CubeHelpers";
 import { Option } from "react-multi-select-component"
 import ReactGA from 'react-ga4';
+import { ThemeContext } from "../contexts/ThemeContext";
 
 export class FileInput extends React.Component<FileInputProps, FileInputState> {
     state: FileInputState = { solves: [], showHelpModal: false };
@@ -116,12 +117,33 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                 <header className={"header"}>
                     <Navbar>
                         <Navbar.Brand>
-                            Cubeast Analyzer
+                            Smartcube Analyzer
                         </Navbar.Brand>
-                        <Button
-                            onClick={() => { this.helpButtonClicked() }}>
-                            Help
-                        </Button>
+                        <Navbar.Collapse className="justify-content-end">
+                            <ThemeContext.Consumer>
+                                {({ isDark, setTheme }) => (
+                                    <ButtonGroup size="sm" className="me-1">
+                                        <Button
+                                            variant={isDark ? "outline-secondary" : "primary"}
+                                            onClick={() => setTheme("light")}
+                                        >
+                                            Light
+                                        </Button>
+                                        <Button
+                                            variant={isDark ? "primary" : "outline-secondary"}
+                                            onClick={() => setTheme("dark")}
+                                        >
+                                            Dark
+                                        </Button>
+                                    </ButtonGroup>
+                                )}
+                            </ThemeContext.Consumer>
+                            <Button
+                                className="ms-2 me-2"
+                                onClick={() => { this.helpButtonClicked() }}>
+                                Help
+                            </Button>
+                        </Navbar.Collapse>
                     </Navbar>
                 </header>
 

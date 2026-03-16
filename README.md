@@ -1,6 +1,6 @@
-# CubeastAnalyzer
+# SmartcubeAnalyzer
 
-CubeastAnalyzer is a tool designed to analyze and visualize data related to cube solving. It provides various statistical functions and visualizations to help users understand their performance and improve their solving skills.
+SmartcubeAnalyzer is a tool designed to analyze and visualize data related to cube solving. It provides various statistical functions and visualizations to help users understand their performance and improve their solving skills.
 
 ## Features
 
@@ -9,7 +9,7 @@ CubeastAnalyzer is a tool designed to analyze and visualize data related to cube
 - **Count of Solves by How Long They Took**: Visualizes the number of solves within specific time ranges.
 - **Average Turns Per Second (TPS)**: Displays the average TPS and TPS during execution.
 - **Average Turns**: Shows the average number of turns per solve.
-- **Move Efficiency**: Displays the ratio of simplified (after cancelling redundant same-face moves) to actual move count; 100% means no wasted moves.
+- **Solve Efficiency**: Shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL failure rates, and a combined solve efficiency.
 - **Top 100 Fastest Solves**: Lists the top 100 fastest solves given the current filters.
 - **Average Standard Deviation**: Displays the running standard deviation of solve times.
 - **Percentage of Solves by Cross Color**: Shows the percentage of solves starting with each cross color.
@@ -32,7 +32,7 @@ Some charts appear only for certain method or step selections; the list above no
 
 ## Supported data sources
 
-CubeastAnalyzer can import and analyze solves exported from:
+SmartcubeAnalyzer can import and analyze solves exported from:
 
 - **Cubeast** ([cubeast.com](https://www.cubeast.com/))
 - **Acubemy** ([acubemy.com](https://acubemy.com/))
@@ -52,8 +52,8 @@ All sources are normalized so that metrics such as total time, recognition/execu
 
 ## How timings are interpreted
 
-- **Cubeast AUFs**: Cubeast records AUF moves (U / U' / U2 / U3) at the start of a step as part of recognition. CubeastAnalyzer detects these leading AUFs in each step (except for Cross) and **moves their duration from recognition into execution**. This makes execution stats better reflect the actual turning you do, while still keeping total step time unchanged.
-- **Acubemy rotations**: Acubemy records cube rotations in execution using gyro data, which can include spurious rotations that do not correspond to real turns and would otherwise inflate execution times. CubeastAnalyzer **strips rotation moves from the solution** so that turn counts, TPS, and step moves use only actual turns. When recomputing step recognition/execution, the timeline is already rotation-free; the time between the previous step’s last move and the current step’s first move (which in the raw data may include rotations) is assigned as **recognition time for the current step**, matching the same behavior used for Cubeast after AUF correction.
+- **Cubeast AUFs**: Cubeast records AUF moves (U / U' / U2 / U3) at the start of a step as part of recognition. SmartcubeAnalyzer detects these leading AUFs in each step (except for Cross) and **moves their duration from recognition into execution**. This makes execution stats better reflect the actual turning you do, while still keeping total step time unchanged.
+- **Acubemy rotations**: Acubemy records cube rotations in execution using gyro data, which can include spurious rotations that do not correspond to real turns and would otherwise inflate execution times. SmartcubeAnalyzer **strips rotation moves from the solution** so that turn counts, TPS, and step moves use only actual turns. When recomputing step recognition/execution, the timeline is already rotation-free; the time between the previous step’s last move and the current step’s first move (which in the raw data may include rotations) is assigned as **recognition time for the current step**, matching the same behavior used for Cubeast after AUF correction.
 
 ## Installation
 
@@ -78,7 +78,7 @@ This builds the app and starts a local development server (typically on `http://
 Once the app is running:
 
 1. Export your solves from Cubeast or Acubemy.  
-2. Import the exported files into CubeastAnalyzer. You can upload one or more CSV files (from Cubeast and/or Acubemy) to Cubeast Analyzer and display your combined stats!
+2. Import the exported files into SmartcubeAnalyzer. You can upload one or more CSV files (from Cubeast and/or Acubemy) to Smartcube Analyzer and display your combined stats!
 3. Explore the dashboards to drill into timings, TPS, and step-level performance.
 
 ## Running Tests

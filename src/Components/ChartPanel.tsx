@@ -1,9 +1,11 @@
 import React from "react";
 import { ChartPanelProps, ChartPanelState, ChartType, CaseStats, FastestSolve, MethodName, Solve, StepName, StreakData } from "../Helpers/Types";
 import { Chart as ChartJS, ChartData, CategoryScale } from 'chart.js/auto';
-import { calculateAverage, calculateMovingAverage, reduceDataset, calculateMovingAverageChopped } from "../Helpers/MathHelpers";
+import { calculateAverage, calculateMovingAverage, calculateMovingPercentage, reduceDataset, calculateMovingAverageChopped } from "../Helpers/MathHelpers";
 import { createOptions, buildChartHtml } from "../Helpers/ChartHelpers";
+import { applyPaletteToChartData } from "../Helpers/ChartColors";
 import { Row, Tooltip } from "react-bootstrap";
+import { ThemeContext } from "../contexts/ThemeContext";
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { Const } from "../Helpers/Constants";
 import DataGrid, { CellClickArgs } from 'react-data-grid';
@@ -30,6 +32,7 @@ import {
 ChartJS.register(CategoryScale);
 
 export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState> {
+    static contextType = ThemeContext;
     state: ChartPanelState = { solves: [] };
 
     private _chartDataCache: Record<string, unknown> | null = null;
@@ -42,10 +45,12 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _lastBadTimeRef: number = 0;
     private _lastMethodNameRef: MethodName = MethodName.CFOP;
     private _lastUse4SegmentTimingRef: boolean = false;
+    private _lastIsDarkRef: boolean = false;
 
     private _propsChanged(): boolean {
         const p = this.props;
         const stepsKey = p.steps.join(',');
+        const isDark = (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
         return (
             this._lastSolvesRef !== p.solves ||
             this._lastWindowSizeRef !== p.windowSize ||
@@ -55,12 +60,14 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             this._lastGoodTimeRef !== p.goodTime ||
             this._lastBadTimeRef !== p.badTime ||
             this._lastMethodNameRef !== p.methodName ||
-            this._lastUse4SegmentTimingRef !== p.use4SegmentTiming
+            this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
+            this._lastIsDarkRef !== isDark
         );
     }
 
     private _updatePropsRefs(): void {
         const p = this.props;
+        const isDark = (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
         this._lastSolvesRef = p.solves;
         this._lastWindowSizeRef = p.windowSize;
         this._lastPointsPerGraphRef = p.pointsPerGraph;
@@ -70,6 +77,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         this._lastBadTimeRef = p.badTime;
         this._lastMethodNameRef = p.methodName;
         this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
+        this._lastIsDarkRef = isDark;
     }
 
     private _computeAllChartData(): Record<string, unknown> {
@@ -101,6 +109,20 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         if (this.props.steps.length === 1 && (this.props.steps[0] === StepName.OLL || this.props.steps[0] === StepName.PLL)) {
             cache.caseData = this.buildCaseData();
             cache.algorithmPracticeTable = this.buildAlgorithmPracticeTable();
+        }
+        const isDark = (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
+        const chartDataKeys = [
+            'runningAverage', 'runningStdDev', 'runningTps', 'runningInspection', 'runningTurns',
+            'runningRecognitionExecution', 'runningEfficiency', 'histogram', 'stepAverages',
+            'runningColorPercentages', 'inspection', 'dailyRecord', 'goodBad', 'recordHistory',
+            'stepPercentages', 'typicalCompare', 'ollCategory', 'pllCategory', 'caseData',
+        ] as const;
+        for (const key of chartDataKeys) {
+            const val = cache[key];
+            if (val && typeof val === 'object' && 'datasets' in val && Array.isArray((val as { datasets: unknown }).datasets)) {
+                const perPoint = key === 'stepPercentages';
+                cache[key] = applyPaletteToChartData(val as ChartData<'line'>, isDark, perPoint);
+            }
         }
         return cache;
     }
@@ -433,10 +455,12 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     buildRunningColorPercentages() {
+        const isDark = (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
         return buildRunningColorPercentagesChartData(
             this.props.solves,
             this.props.windowSize,
-            this.props.pointsPerGraph
+            this.props.pointsPerGraph,
+            isDark
         );
     }
 
@@ -627,29 +651,38 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 data: movingAvg
             }
         ];
-        if (this.props.methodName === MethodName.CFOP) {
-            const ollFailureData = labels.map((lbl, i) => effList[parseInt(lbl, 10) - 1]?.hadOllFailure ? movingAvg[i] : null);
-            const pllFailureData = labels.map((lbl, i) => effList[parseInt(lbl, 10) - 1]?.hadPllFailure ? movingAvg[i] : null);
-            datasets.push(
-                {
-                    label: 'OLL failure',
-                    data: ollFailureData,
-                    showLine: false,
-                    pointRadius: 6,
-                    pointBackgroundColor: 'rgba(255, 99, 132, 0.8)',
-                    pointBorderColor: 'rgb(255, 99, 132)',
-                    pointBorderWidth: 1
-                },
-                {
-                    label: 'PLL failure',
-                    data: pllFailureData,
-                    showLine: false,
-                    pointRadius: 6,
-                    pointBackgroundColor: 'rgba(54, 162, 235, 0.8)',
-                    pointBorderColor: 'rgb(54, 162, 235)',
-                    pointBorderWidth: 1
-                }
-            );
+        const needOllForChart = this.props.methodName === MethodName.CFOP;
+        const needPllForChart = this.props.methodName === MethodName.CFOP || this.props.methodName === MethodName.CFOP_2OLL;
+        if (needOllForChart || needPllForChart) {
+            const ollRate = needOllForChart
+                ? reduceDataset(
+                    calculateMovingPercentage(effList, this.props.windowSize, (e) => e.hadOllFailure),
+                    this.props.pointsPerGraph
+                )
+                : movingAvg.map(() => 0);
+            const pllRate = needPllForChart
+                ? reduceDataset(
+                    calculateMovingPercentage(effList, this.props.windowSize, (e) => e.hadPllFailure),
+                    this.props.pointsPerGraph
+                )
+                : movingAvg.map(() => 0);
+            const solveEfficiency = movingAvg.map((eff, i) => eff - ollRate[i] - pllRate[i]);
+            datasets.push({
+                label: 'Solve efficiency',
+                data: solveEfficiency,
+            });
+            if (needOllForChart) {
+                datasets.push({
+                    label: `OLL failure % (last ${this.props.windowSize})`,
+                    data: ollRate,
+                });
+            }
+            if (needPllForChart) {
+                datasets.push({
+                    label: `PLL failure % (last ${this.props.windowSize})`,
+                    data: pllRate,
+                });
+            }
         }
 
         let data: ChartData<"line"> = { labels, datasets };
@@ -694,51 +727,52 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         }
         const c = this._chartDataCache;
         const p = this.props;
+        const isDark = (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
         let charts: JSX.Element[] = [];
 
         let ollIndex: number = p.steps.indexOf(StepName.OLL);
         let pllIndex: number = p.steps.indexOf(StepName.PLL);
 
         if (p.steps.length == 1 && (p.steps[0] === StepName.OLL || p.steps[0] === StepName.PLL)) {
-            charts.push(buildChartHtml(<Bar data={c.caseData as ChartData<"bar">} options={createOptions(ChartType.Bar, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Recognition Time and Execution Time per Case", "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."));
+            charts.push(buildChartHtml(<Bar data={c.caseData as ChartData<"bar">} options={createOptions(ChartType.Bar, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Recognition Time and Execution Time per Case", "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."));
             charts.push(buildChartHtml(c.algorithmPracticeTable as JSX.Element, "Algorithm Practice", "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."));
         }
 
-        charts.push(buildChartHtml(<Line data={c.runningAverage as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Time", "This chart shows your running average"));
-        charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
-        charts.push(buildChartHtml(<Bar data={c.histogram as ChartData<"bar">} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
-        charts.push(buildChartHtml(<Line data={c.runningTps as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
-        charts.push(buildChartHtml(<Line data={c.runningTurns as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
-        charts.push(buildChartHtml(<Line data={c.runningEfficiency as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Efficiency %", p.useLogScale)} />, "Move Efficiency", "This chart shows the ratio of simplified (after cancelling redundant same-face moves) to actual move count. 100% means no wasted moves."));
+        charts.push(buildChartHtml(<Line data={c.runningAverage as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time", "This chart shows your running average"));
+        charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
+        charts.push(buildChartHtml(<Bar data={c.histogram as ChartData<"bar">} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale, true, false, isDark)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
+        charts.push(buildChartHtml(<Line data={c.runningTps as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
+        charts.push(buildChartHtml(<Line data={c.runningTurns as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale, true, false, isDark)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
+        charts.push(buildChartHtml(<Line data={c.runningEfficiency as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Efficiency %", p.useLogScale, true, false, isDark)} />, "Solve Efficiency", "This chart shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL failure rates, and a combined solve efficiency (move efficiency minus failure rates)."));
         charts.push(buildChartHtml(this.buildBestSolves(c.bestSolvesData as FastestSolve[]), `Top ${Const.FastestSolvesCount} Fastest Solves`, `This shows your ${Const.FastestSolvesCount} fastest solves, given the filters`));
-        charts.push(buildChartHtml(<Line data={c.runningStdDev as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Standard Deviation", "This chart shows your running average's standard deviation"));
-        charts.push(buildChartHtml(<Line data={c.runningColorPercentages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "Percentage of Solves by Cross Color", "This chart shows what percentage of solves started with cross on White/Yellow/etc..."));
-        charts.push(buildChartHtml(<Bar data={c.inspection as ChartData<"bar">} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
-        charts.push(buildChartHtml(<Line data={c.stepAverages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
-        charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
+        charts.push(buildChartHtml(<Line data={c.runningStdDev as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Standard Deviation", "This chart shows your running average's standard deviation"));
+        charts.push(buildChartHtml(<Line data={c.runningColorPercentages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Percentage of Solves by Cross Color", "This chart shows what percentage of solves started with cross on White/Yellow/etc..."));
+        charts.push(buildChartHtml(<Bar data={c.inspection as ChartData<"bar">} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale, true, false, isDark)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
+        charts.push(buildChartHtml(<Line data={c.stepAverages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
+        charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
         charts.push(buildChartHtml(c.allStreakData as JSX.Element, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
-        charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
         charts.push(buildChartHtml(c.currentRecords as JSX.Element, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
         if (ollIndex != -1) {
-            charts.push(buildChartHtml(<Line data={c.ollCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));
+            charts.push(buildChartHtml(<Line data={c.ollCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));
         }
 
         if (pllIndex != -1) {
-            charts.push(buildChartHtml(<Line data={c.pllCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "PLL Corner Permutation", "This chart shows your percentage of PLL cases by corner permutation"));
+            charts.push(buildChartHtml(<Line data={c.pllCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "PLL Corner Permutation", "This chart shows your percentage of PLL cases by corner permutation"));
         }
 
         if (p.methodName == MethodName.CFOP && p.steps.length == Const.MethodSteps[MethodName.CFOP].length) {
-            charts.push(buildChartHtml(<Bar data={c.typicalCompare as ChartData<"bar">} options={createOptions(ChartType.Bar, "Step Name", "Time (s)", p.useLogScale, false)} />, "Time Per Step, Compared to Typical Solver", "This chart shows how long each step takes, compared to a typical solver at your average. The 'typical' data is calculated based on a tool provided from Felix Zemdegs's CubeSkills blog"));
+            charts.push(buildChartHtml(<Bar data={c.typicalCompare as ChartData<"bar">} options={createOptions(ChartType.Bar, "Step Name", "Time (s)", p.useLogScale, false, false, isDark)} />, "Time Per Step, Compared to Typical Solver", "This chart shows how long each step takes, compared to a typical solver at your average. The 'typical' data is calculated based on a tool provided from Felix Zemdegs's CubeSkills blog"));
         }
 
         if (p.steps.length >= 2) {
-            charts.push(buildChartHtml(<Doughnut data={c.stepPercentages as ChartData<"doughnut">} options={createOptions(ChartType.Doughnut, "", "", p.useLogScale)} />, "Percentage of the Solve Each Step Took", "This chart shows what percentage of your solve each step takes"));
+            charts.push(buildChartHtml(<Doughnut data={c.stepPercentages as ChartData<"doughnut">} options={createOptions(ChartType.Doughnut, "", "", p.useLogScale, true, false, isDark)} />, "Percentage of the Solve Each Step Took", "This chart shows what percentage of your solve each step takes"));
         }
 
         if (p.steps.length == Const.MethodSteps[p.methodName].length) {
-            charts.push(buildChartHtml(<Line data={c.goodBad as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
-            charts.push(buildChartHtml(<Line data={c.recordHistory as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."))
+            charts.push(buildChartHtml(<Line data={c.goodBad as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
+            charts.push(buildChartHtml(<Line data={c.recordHistory as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."))
         }
 
         let chartRow = (

@@ -1,7 +1,7 @@
 /**
  * Loads demo solve data from the static CSV file.
  * The CSV is served from public/demo-solves.csv to keep the main bundle small.
- * Uses a URL relative to the app base path so it works when the app is served from root (/) or a subpath (e.g. /cubeastanalyzer), with or without a trailing slash.
+ * Uses a URL relative to the app base path so it works when the app is served from root (/) or a subpath (e.g. /smartcubeanalyzer), with or without a trailing slash.
  */
 function getDemoDataUrl(): string {
     if (typeof process !== 'undefined' && process.env.PUBLIC_URL) {

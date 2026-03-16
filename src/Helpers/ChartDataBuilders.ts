@@ -244,11 +244,13 @@ export function buildGoodBadData(
 export function buildRunningColorPercentages(
     solves: Solve[],
     windowSize: number,
-    pointsPerGraph: number
+    pointsPerGraph: number,
+    isDark?: boolean
 ): ChartData<'line'> {
     type ColorDef = { color: CrossColor; label: string; borderColor: string; backgroundColor: string };
+    const whiteLineColor = isDark ? 'White' : 'Black';
     const colorDefs: ColorDef[] = [
-        { color: CrossColor.White, label: 'White', borderColor: 'Black', backgroundColor: 'Black' },
+        { color: CrossColor.White, label: 'White', borderColor: whiteLineColor, backgroundColor: whiteLineColor },
         { color: CrossColor.Yellow, label: 'Yellow', borderColor: 'Yellow', backgroundColor: 'Yellow' },
         { color: CrossColor.Red, label: 'Red', borderColor: 'Red', backgroundColor: 'Red' },
         { color: CrossColor.Orange, label: 'Orange', borderColor: 'Orange', backgroundColor: 'Orange' },
