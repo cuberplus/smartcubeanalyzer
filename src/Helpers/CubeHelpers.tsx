@@ -7,6 +7,8 @@ export function GetEmptyStep() {
         time: 0,
         executionTime: 0,
         recognitionTime: 0,
+        preAufTime: 0,
+        postAufTime: 0,
         turns: 0,
         tps: 0,
         moves: "",
@@ -20,6 +22,9 @@ export function GetEmptyStep() {
 export function GetEmptySolve() {
     let solve: Solve = {
         id: "",
+        source: 'cubeast',
+        rawSourceId: "",
+        rawSource: "",
         time: 0,
         date: new Date(),
         crossColor: CrossColor.Unknown,
@@ -28,6 +33,8 @@ export function GetEmptySolve() {
         recognitionTime: 0,
         inspectionTime: 0,
         executionTime: 0,
+        preAufTime: 0,
+        postAufTime: 0,
         turns: 0,
         steps: [GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep(), GetEmptyStep()],
         isCorrupt: false,

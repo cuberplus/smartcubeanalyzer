@@ -189,6 +189,10 @@ export function splitIntoChunks(values: any[], chunks: number) {
 
 // Given the user's average time, calculate what the expected splits should be
 export function getTypicalAverages(userAverage: number) {
+    if (!Number.isFinite(userAverage)) {
+        const zeroes = [0, 0, 0, 0];
+        return zeroes;
+    }
     const typicalData = [
         { maxAverage: 8, splits: [.95, 4.05, 1.3, 1.7], expected: 8 },
         { maxAverage: 10, splits: [1.2, 5, 1.65, 2.15], expected: 10 },

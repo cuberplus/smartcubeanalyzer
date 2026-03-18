@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import moment from "moment";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
@@ -15,7 +16,12 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     state: FilterPanelState = {
         allSolves: [],
         filteredSolves: [],
+        compressedSolves: [],
+        lastAppliedSolves: [],
+        lastAppliedFilters: null,
+        lastAppliedWindowSize: Const.DefaultWindowSize,
         filters: {
+            sources: ['cubeast', 'acubemy'],
             startDate: moment.utc("1700-01-01").toDate(),
             endDate: moment.utc("2300-01-01").toDate(),
             fastestTime: 0,
@@ -42,6 +48,10 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             { label: CrossColor.Unknown, value: CrossColor.Unknown },
         ],
         chosenSessions: [],
+        chosenSources: [
+            { label: 'Cubeast', value: 'cubeast' },
+            { label: 'Acubemy', value: 'acubemy' }
+        ],
         solveCleanliness: Const.solveCleanliness,
         solveLuckiness: Const.solveLuckiness,
         chosenPLLs: Const.PllCases,
@@ -54,7 +64,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         badTime: 20,
         goodTime: 15,
         method: { label: MethodName.CFOP, value: MethodName.CFOP },
-        useLogScale: false
+        useLogScale: false,
+        use4SegmentTiming: true
     }
 
     static passesFilters(solve: Solve, filters: Filters) {
@@ -62,6 +73,9 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             return false;
         }
         if (solve.method != filters.method) {
+            return false;
+        }
+        if (filters.sources.indexOf(solve.source) < 0) {
             return false;
         }
         if (filters.crossColors.indexOf(solve.crossColor) < 0) {
@@ -76,7 +90,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         if (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection) {
             return false;
         }
-        if (filters.sessions.indexOf(solve.session) < 0) {
+        // Only filter by session when the solve has a session set; avoids excluding rows where session wasn't parsed (e.g. CSV column alignment).
+        if (filters.sessions.length > 0 && (solve.session !== '' && solve.session != null) && filters.sessions.indexOf(solve.session) < 0) {
             return false;
         }
 
@@ -181,11 +196,102 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         return filteredSolves;
     }
 
+    static compressSolves(solves: Solve[], steps: StepName[]): Solve[] {
+        let newSolves: Solve[] = [];
+
+        solves.forEach((solve) => {
+            let newSteps: Step[] = solve.steps.filter((x) => steps.find((y) => y === x.name));
+
+            const stepExecutionTime = newSteps.reduce((sum, current) => sum + current.executionTime, 0);
+            const stepRecognitionTime = newSteps.reduce((sum, current) => sum + current.recognitionTime, 0);
+            const stepPreAufTime = newSteps.reduce((sum, current) => sum + current.preAufTime, 0);
+            const stepPostAufTime = newSteps.reduce((sum, current) => sum + current.postAufTime, 0);
+            const stepTime = newSteps.reduce((sum, current) => sum + current.time, 0);
+            const stepTurns = newSteps.reduce((sum, current) => sum + current.turns, 0);
+
+            const turns = stepTurns > 0 ? stepTurns : solve.turns;
+
+            let tps: number;
+            if (stepTime > 0 && turns > 0) {
+                tps = turns / stepTime;
+            } else {
+                tps = solve.tps;
+            }
+
+            let newSolve: Solve = {
+                id: solve.id,
+                source: solve.source,
+                rawSourceId: solve.rawSourceId,
+                rawSource: solve.rawSource,
+                time: solve.time,
+                date: solve.date,
+                crossColor: solve.crossColor,
+                scramble: solve.scramble,
+                tps: tps,
+                inspectionTime: solve.inspectionTime,
+                recognitionTime: stepRecognitionTime,
+                executionTime: stepExecutionTime,
+                preAufTime: stepPreAufTime,
+                postAufTime: stepPostAufTime,
+                turns: turns,
+                steps: newSteps,
+                isCorrupt: solve.isCorrupt,
+                method: solve.method,
+                session: solve.session,
+                isMistake: solve.isMistake,
+                isFullStep: solve.isFullStep
+            };
+
+            newSolves.push(newSolve);
+        });
+
+        return newSolves;
+    }
+
     static getDerivedStateFromProps(nextProps: FilterPanelProps, prevState: FilterPanelState) {
+        const inputsUnchanged =
+            nextProps.solves === prevState.lastAppliedSolves &&
+            prevState.filters === prevState.lastAppliedFilters &&
+            prevState.windowSize === prevState.lastAppliedWindowSize;
+
+        if (inputsUnchanged) {
+            return {
+                allSolves: nextProps.solves,
+                filteredSolves: prevState.filteredSolves,
+                compressedSolves: prevState.compressedSolves,
+                lastAppliedSolves: prevState.lastAppliedSolves,
+                lastAppliedFilters: prevState.lastAppliedFilters,
+                lastAppliedWindowSize: prevState.lastAppliedWindowSize,
+                method: prevState.method,
+                chosenSteps: prevState.chosenSteps,
+                filters: prevState.filters,
+                chosenColors: prevState.chosenColors,
+                chosenPLLs: prevState.chosenPLLs,
+                chosenOLLs: prevState.chosenOLLs,
+                chosenSessions: prevState.chosenSessions,
+                chosenSources: prevState.chosenSources,
+                tabKey: prevState.tabKey,
+                windowSize: prevState.windowSize,
+                pointsPerGraph: prevState.pointsPerGraph,
+                showFilters: prevState.showFilters,
+                showTestAlert: prevState.showTestAlert,
+                solveCleanliness: prevState.solveCleanliness,
+                solveLuckiness: prevState.solveLuckiness,
+                badTime: prevState.badTime,
+                goodTime: prevState.goodTime,
+                useLogScale: prevState.useLogScale,
+                use4SegmentTiming: prevState.use4SegmentTiming
+            };
+        }
+
         let newState: FilterPanelState = {
             // Assume all props stay the same
             allSolves: prevState.allSolves,
             filteredSolves: prevState.filteredSolves,
+            compressedSolves: prevState.compressedSolves,
+            lastAppliedSolves: prevState.lastAppliedSolves,
+            lastAppliedFilters: prevState.lastAppliedFilters,
+            lastAppliedWindowSize: prevState.lastAppliedWindowSize,
             method: prevState.method,
             chosenSteps: prevState.chosenSteps,
             filters: prevState.filters,
@@ -193,6 +299,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             chosenPLLs: prevState.chosenPLLs,
             chosenOLLs: prevState.chosenOLLs,
             chosenSessions: prevState.chosenSessions,
+            chosenSources: prevState.chosenSources,
             tabKey: prevState.tabKey,
             windowSize: prevState.windowSize,
             pointsPerGraph: prevState.pointsPerGraph,
@@ -202,26 +309,46 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             solveLuckiness: prevState.solveLuckiness,
             badTime: prevState.badTime,
             goodTime: prevState.goodTime,
-            useLogScale: prevState.useLogScale
+            useLogScale: prevState.useLogScale,
+            use4SegmentTiming: prevState.use4SegmentTiming
         }
 
         // Update anything that needs it
         newState.allSolves = nextProps.solves;
-        newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, prevState.filters, newState.windowSize);
-        if (newState.windowSize >= newState.filteredSolves.length) {
+        const solvesChanged = nextProps.solves !== prevState.lastAppliedSolves;
+        if (solvesChanged) {
+            if (nextProps.suggestedMethod !== undefined) {
+                const method = nextProps.suggestedMethod.value as MethodName;
+                newState.method = nextProps.suggestedMethod;
+                newState.filters = { ...newState.filters, method, steps: Const.MethodSteps[method] };
+                newState.chosenSteps = FilterPanel.getStepOptionsForMethod(method);
+            }
+            if (nextProps.suggestedSessions !== undefined) {
+                newState.chosenSessions = nextProps.suggestedSessions;
+                newState.filters = { ...newState.filters, sessions: nextProps.suggestedSessions.map(x => x.value) };
+            }
+            if (nextProps.suggestedWindowSize !== undefined) {
+                newState.windowSize = nextProps.suggestedWindowSize;
+            }
+            if (nextProps.showTestAlert !== undefined) {
+                newState.showTestAlert = nextProps.showTestAlert;
+            }
+        }
+        newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
+        if (newState.filteredSolves.length > 0 && newState.windowSize >= newState.filteredSolves.length) {
             newState.windowSize = Math.max(5, Math.ceil(newState.filteredSolves.length / 4));
         }
-
+        newState.compressedSolves = FilterPanel.compressSolves(newState.filteredSolves, newState.filters.steps);
+        newState.lastAppliedSolves = nextProps.solves;
+        newState.lastAppliedFilters = newState.filters;
+        newState.lastAppliedWindowSize = newState.windowSize;
         return newState;
     }
 
     crossColorsChanged(selectedList: any[]) {
         let selectedColors: CrossColor[] = selectedList.map(x => x.value);
-        let newFilters: Filters = this.state.filters;
-        newFilters.crossColors = selectedColors;
-
         this.setState({
-            filters: newFilters,
+            filters: { ...this.state.filters, crossColors: selectedColors },
             chosenColors: selectedList
         })
     }
@@ -242,23 +369,25 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             (sortOrder[a] || Number.MAX_VALUE) - (sortOrder[b] || Number.MAX_VALUE)
         );
 
-        let newFilters: Filters = this.state.filters;
-        newFilters.steps = selectedSteps;
-
         this.setState({
-            filters: newFilters,
+            filters: { ...this.state.filters, steps: selectedSteps },
             chosenSteps: selectedList
         })
     }
 
     chosenSessionsChanged(selectedList: any[]) {
         let selectedSessions: string[] = selectedList.map(x => x.value);
-        let newFilters: Filters = this.state.filters;
-        newFilters.sessions = selectedSessions;
-
         this.setState({
-            filters: newFilters,
+            filters: { ...this.state.filters, sessions: selectedSessions },
             chosenSessions: selectedList
+        })
+    }
+
+    sourcesChanged(selectedList: any[]) {
+        let selectedSources: ('cubeast' | 'acubemy')[] = selectedList.map(x => x.value);
+        this.setState({
+            filters: { ...this.state.filters, sources: selectedSources },
+            chosenSources: selectedList
         })
     }
 
@@ -284,73 +413,63 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
 
     methodChanged(newValue: Option | null) {
         let newMethod: MethodName = newValue!.value;
-        let newFilters: Filters = this.state.filters;
-        newFilters.method = newMethod;
-        newFilters.steps = Const.MethodSteps[newMethod];
-
         this.setState({
             method: newValue!,
-            filters: newFilters,
+            filters: { ...this.state.filters, method: newMethod, steps: Const.MethodSteps[newMethod] },
             chosenSteps: FilterPanel.getStepOptionsForMethod(newMethod)
         })
     }
 
     pllChanged(selectedList: any[]) {
         let selectedPlls: string[] = selectedList.map(x => x.value);
-        let newFilters: Filters = this.state.filters;
-        newFilters.pllCases = selectedPlls;
-
         this.setState({
-            filters: newFilters,
+            filters: { ...this.state.filters, pllCases: selectedPlls },
             chosenPLLs: selectedList
         })
     }
 
     ollChanged(selectedList: any[]) {
         let selectedOlls: string[] = selectedList.map(x => x.value);
-        let newFilters: Filters = this.state.filters;
-        newFilters.ollCases = selectedOlls;
-
         this.setState({
-            filters: newFilters,
+            filters: { ...this.state.filters, ollCases: selectedOlls },
             chosenOLLs: selectedList
         })
     }
 
     setStartDate(newStartDate: Date) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.startDate = newStartDate;
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, startDate: newStartDate }
+        })
     }
 
     setEndDate(newEndDate: Date) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.startDate = newEndDate;
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, endDate: newEndDate }
+        })
     }
 
     setSlowestSolve(event: React.ChangeEvent<HTMLInputElement>) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.slowestTime = parseInt(event.target.value);
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, slowestTime: parseInt(event.target.value) }
+        })
     }
 
     setFastestSolve(event: React.ChangeEvent<HTMLInputElement>) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.fastestTime = parseInt(event.target.value);
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, fastestTime: parseInt(event.target.value) }
+        })
     }
 
     setLowestInspection(event: React.ChangeEvent<HTMLInputElement>) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.lowestInspection = parseInt(event.target.value);
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, lowestInspection: parseInt(event.target.value) }
+        })
     }
 
     setHighestInspection(event: React.ChangeEvent<HTMLInputElement>) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.highestInspection = parseInt(event.target.value);
-        this.setState({ filters: newFilters })
+        this.setState({
+            filters: { ...this.state.filters, highestInspection: parseInt(event.target.value) }
+        })
     }
 
     setBadTime(event: React.ChangeEvent<HTMLInputElement>) {
@@ -373,23 +492,21 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         this.setState({ useLogScale: checked });
     }
 
-    setCleanliness(selectedList: any[]) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.solveCleanliness = selectedList.map(x => x.value);
+    setUse4SegmentTiming(checked: boolean) {
+        this.setState({ use4SegmentTiming: checked });
+    }
 
+    setCleanliness(selectedList: any[]) {
         this.setState({
             solveCleanliness: selectedList,
-            filters: newFilters,
+            filters: { ...this.state.filters, solveCleanliness: selectedList.map(x => x.value) },
         })
     }
 
     setLuckiness(selectedList: any[]) {
-        let newFilters: Filters = this.state.filters;
-        newFilters.solveLuckiness = selectedList.map(x => x.value);
-
         this.setState({
             solveLuckiness: selectedList,
-            filters: newFilters,
+            filters: { ...this.state.filters, solveLuckiness: selectedList.map(x => x.value) },
         })
     }
 
@@ -411,44 +528,6 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
 
     hideAlert() {
         this.setState({ showTestAlert: false });
-    }
-
-    // This function takes the filters, and creates a new solve based on them.
-    // For example, if only Cross and F2L Pair 1 are selected, then it sums up the times for only those
-    // fields, and leaves the rest intact.
-    compressSolves(solves: Solve[]) {
-        let newSolves: Solve[] = [];
-
-        solves.forEach((solve) => {
-            let newSteps: Step[] = solve.steps.filter((x) => {
-                return this.state.filters.steps.find((y) => y == x.name);
-            });
-
-            let newSolve: Solve = {
-                id: solve.id,
-                crossColor: solve.crossColor,
-                date: solve.date,
-                inspectionTime: solve.inspectionTime,
-                executionTime: newSteps.reduce((sum, current) => sum + current.executionTime, 0),
-                recognitionTime: newSteps.reduce((sum, current) => sum + current.recognitionTime, 0),
-                isCorrupt: solve.isCorrupt,
-                method: solve.method,
-                scramble: solve.scramble,
-                time: newSteps.reduce((sum, current) => sum + current.time, 0),
-                turns: newSteps.reduce((sum, current) => sum + current.turns, 0),
-                tps: newSteps.reduce((sum, current) => sum + current.time, 0) === 0
-                    ? 0
-                    : newSteps.reduce((sum, current) => sum + current.turns, 0) / newSteps.reduce((sum, current) => sum + current.time, 0),
-                isFullStep: solve.isFullStep,
-                isMistake: solve.isMistake,
-                steps: newSteps,
-                session: solve.session
-            };
-
-            newSolves.push(newSolve);
-        });
-
-        return newSolves;
     }
 
     createTooltip(description: string) {
@@ -480,6 +559,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 <Container>
                     {this.createFilterHtml(
                         <Select
+                            classNamePrefix="method-select"
                             options={this.getMethodOptions()}
                             value={this.state.method}
                             onChange={this.methodChanged.bind(this)}
@@ -496,6 +576,19 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         />,
                         "Which Sessions?",
                         "This dropdown lets you choose which method to show solves for."
+                    )}
+                    {this.createFilterHtml(
+                        <MultiSelect
+                            options={[
+                                { label: 'Cubeast', value: 'cubeast' },
+                                { label: 'Acubemy', value: 'acubemy' }
+                            ]}
+                            value={this.state.chosenSources}
+                            onChange={this.sourcesChanged.bind(this)}
+                            labelledBy="Select"
+                        />,
+                        "Source",
+                        "Choose which sources (Cubeast or Acubemy) to include in the analysis."
                     )}
                     {this.createFilterHtml(
                         <MultiSelect
@@ -626,6 +719,12 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
+                        <ReactSwitch id="use4SegmentTiming" checked={this.state.use4SegmentTiming} onChange={this.setUse4SegmentTiming.bind(this)} />,
+                        "4-Segment Timing",
+                        "Show recognition, pre-AUF, execution, and post-AUF as separate segments in timing charts. When off, shows only recognition and execution."
+                    )}
+
+                    {this.createFilterHtml(
                         <div className="row">
                             <div className="form-outline col-6" >
                                 <FormControl min="0" max="300" type="number" id="goodTime" value={this.state.goodTime} onChange={this.setGoodTime.bind(this)} />
@@ -639,13 +738,23 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
-                        <DatePicker selected={this.state.filters.startDate} onChange={this.setStartDate.bind(this)} />,
+                        <DatePicker
+                            selected={this.state.filters.startDate}
+                            onChange={this.setStartDate.bind(this)}
+                            popperContainer={({ children }) => createPortal(children, document.body)}
+                            popperProps={{ strategy: "fixed" }}
+                        />,
                         "Pick Start Date",
                         "Choose start date"
                     )}
 
                     {this.createFilterHtml(
-                        <DatePicker selected={this.state.filters.endDate} onChange={this.setEndDate.bind(this)} />,
+                        <DatePicker
+                            selected={this.state.filters.endDate}
+                            onChange={this.setEndDate.bind(this)}
+                            popperContainer={({ children }) => createPortal(children, document.body)}
+                            popperProps={{ strategy: "fixed" }}
+                        />,
                         "Pick End Date",
                         "Choose end date"
                     )}
@@ -684,13 +793,14 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         <Col>
                             <ChartPanel
                                 windowSize={this.state.windowSize}
-                                solves={this.compressSolves(this.state.filteredSolves)}
+                                solves={this.state.compressedSolves}
                                 pointsPerGraph={this.state.pointsPerGraph}
                                 methodName={this.state.filters.method}
                                 goodTime={this.state.goodTime}
                                 badTime={this.state.badTime}
                                 steps={this.state.filters.steps}
                                 useLogScale={this.state.useLogScale}
+                                use4SegmentTiming={this.state.use4SegmentTiming}
                             />
                         </Col>
                     </Row>

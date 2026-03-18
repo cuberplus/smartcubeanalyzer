@@ -1,7 +1,7 @@
 {
-  "name": "cubeastanalyzer",
+  "name": "smartcubeanalyzer",
   "version": "0.1.0",
-  "homepage": "https://cuberplus.com/cubeastanalyzer",
+  "homepage": "https://cuberplus.com/smartcubeanalyzer",
   "private": true,
   "type": "module",
   "dependencies": {

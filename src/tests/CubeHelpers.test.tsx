@@ -8,6 +8,8 @@ test('GetEmptyStep returns an empty step', () => {
         time: 0,
         executionTime: 0,
         recognitionTime: 0,
+        preAufTime: 0,
+        postAufTime: 0,
         turns: 0,
         tps: 0,
         moves: "",
@@ -20,6 +22,9 @@ test('GetEmptySolve returns an empty solve', () => {
     const solve = GetEmptySolve();
     expect(solve).toEqual({
         id: "",
+        source: "cubeast",
+        rawSourceId: "",
+        rawSource: "",
         time: 0,
         date: expect.any(Date),
         crossColor: "Unknown",
@@ -28,12 +33,15 @@ test('GetEmptySolve returns an empty solve', () => {
         recognitionTime: 0,
         inspectionTime: 0,
         executionTime: 0,
+        preAufTime: 0,
+        postAufTime: 0,
         turns: 0,
         steps: expect.any(Array),
         isCorrupt: false,
         method: "CFOP",
         session: "",
-        isMistake: false
+        isMistake: false,
+        isFullStep: true
     });
 });
 

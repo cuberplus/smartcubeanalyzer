@@ -12,7 +12,7 @@ export function createTooltip(description: string) {
 
 export function buildChartHtml(chart: JSX.Element, title: string, tooltip: string): JSX.Element {
     return (
-        <Col className="col-12 col-lg-6">
+        <Col key={title} className="col-12 col-lg-6">
             <Card className="p-3 shadow-sm">
                 <OverlayTrigger placement="top" overlay={createTooltip(tooltip)}>
                     <CardText className="text-center fw-bold">
@@ -27,7 +27,31 @@ export function buildChartHtml(chart: JSX.Element, title: string, tooltip: strin
     )
 }
 
-export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false) {
+const darkScaleOptions = {
+    grid: { color: 'rgba(255,255,255,0.15)' },
+    ticks: { color: 'rgba(255,255,255,0.8)' },
+    title: { color: 'rgba(255,255,255,0.8)' }
+};
+
+function applyDarkScaleOptions(scales: Record<string, unknown>): void {
+    if (!scales) return;
+    for (const key of Object.keys(scales)) {
+        const s = scales[key] as Record<string, unknown>;
+        if (s && typeof s === 'object') {
+            const existingGrid = (s.grid as Record<string, unknown>) || {};
+            const existingTicks = (s.ticks as Record<string, unknown>) || {};
+            const existingTitle = (s.title as Record<string, unknown>) || {};
+            scales[key] = {
+                ...s,
+                grid: { ...existingGrid, ...darkScaleOptions.grid },
+                ticks: { ...existingTicks, ...darkScaleOptions.ticks },
+                title: { ...existingTitle, ...darkScaleOptions.title }
+            };
+        }
+    }
+}
+
+export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false, isDark: boolean = false) {
     let genericOptions: any = {
         maintainAspectRatio: false
     };
@@ -103,6 +127,10 @@ export function createOptions(chartType: ChartType, xAxis: string, yAxis: string
             break;
         default:
             console.log("Unknown chart type: " + chartType)
+    }
+
+    if (isDark && chartOptions.scales) {
+        applyDarkScaleOptions(chartOptions.scales);
     }
 
     return { ...chartOptions, ...genericOptions };

@@ -82,13 +82,16 @@ export interface Filters {
     method: MethodName,
     sessions: string[],
     lowestInspection: number,
-    highestInspection: number
+    highestInspection: number,
+    sources: ('cubeast' | 'acubemy')[]
 }
 
 export interface Step {
     time: number,
     executionTime: number,
     recognitionTime: number,
+    preAufTime: number,
+    postAufTime: number,
     turns: number,
     tps: number,
     moves: string,
@@ -98,6 +101,9 @@ export interface Step {
 
 export interface Solve {
     id: string,
+    source: 'cubeast' | 'acubemy',
+    rawSourceId?: string,
+    rawSource?: string,
     time: number,
     date: Date,
     crossColor: CrossColor,
@@ -106,6 +112,8 @@ export interface Solve {
     inspectionTime: number,
     recognitionTime: number,
     executionTime: number,
+    preAufTime: number,
+    postAufTime: number,
     turns: number,
     steps: Step[],
     isCorrupt: boolean,
@@ -120,12 +128,20 @@ export interface AppState {
 }
 
 export interface FilterPanelProps {
-    solves: Solve[]
+    solves: Solve[],
+    suggestedMethod?: Option,
+    suggestedSessions?: Option[],
+    suggestedWindowSize?: number,
+    showTestAlert?: boolean
 }
 
 export interface FilterPanelState {
     allSolves: Solve[],
     filteredSolves: Solve[],
+    compressedSolves: Solve[],
+    lastAppliedSolves: Solve[],
+    lastAppliedFilters: Filters | null,
+    lastAppliedWindowSize: number,
     filters: Filters,
 
     // Objects required for filter objects to work
@@ -136,6 +152,7 @@ export interface FilterPanelState {
     chosenSessions: Option[],
     solveCleanliness: Option[],
     solveLuckiness: Option[],
+    chosenSources: Option[],
     tabKey: number,
     windowSize: number,
     pointsPerGraph: number,
@@ -144,7 +161,8 @@ export interface FilterPanelState {
     badTime: number,
     goodTime: number,
     method: Option,
-    useLogScale: boolean
+    useLogScale: boolean,
+    use4SegmentTiming: boolean
 }
 
 export interface FileInputProps {
@@ -153,7 +171,11 @@ export interface FileInputProps {
 
 export interface FileInputState {
     solves: Solve[],
-    showHelpModal: boolean
+    showHelpModal: boolean,
+    suggestedMethod?: Option,
+    suggestedSessions?: Option[],
+    suggestedWindowSize?: number,
+    showTestAlert?: boolean
 }
 
 export interface ChartPanelProps {
@@ -164,7 +186,8 @@ export interface ChartPanelProps {
     goodTime: number,
     methodName: MethodName,
     steps: StepName[],
-    useLogScale: boolean
+    useLogScale: boolean,
+    use4SegmentTiming: boolean
 }
 
 export interface ChartPanelState {
@@ -210,11 +233,52 @@ export interface FastestSolve {
     time: string,
     date: string,
     scramble: string,
-    id: string
-    fullstep: string
+    id: string,
+    source: 'cubeast' | 'acubemy',
+    fullstep: string,
+    rawSourceId?: string
 }
 
 export interface StreakData {
     longestStreak: number,
     currentStreak: number,
+}
+
+export interface RedundantPair {
+    startIdx: number,
+    endIdx: number,
+    moves: string
+}
+
+export interface MoveAnalysisResult {
+    originalTurns: number,
+    simplifiedTurns: number,
+    wastedMoves: number,
+    redundantPairs: RedundantPair[]
+}
+
+export interface CaseStats {
+    caseName: string,
+    totalCount: number,
+    failureCount: number,
+    failureRate: number,
+    avgMoves: number,
+    /** Expected move count before tolerance (for display). */
+    expectedMovesBase: number,
+    /** Expected move count with tolerance (used for failure detection). */
+    expectedMoves: number,
+    instances: { solveId: string; turns: number; failed: boolean }[]
+}
+
+export interface AufInefficiency {
+    preAufMoves: number,
+    postAufMoves: number,
+    totalAufTime: number,
+    isHighCost: boolean
+}
+
+export interface SolveEfficiency {
+    moveEfficiency: number,
+    hadOllFailure: boolean,
+    hadPllFailure: boolean
 }
