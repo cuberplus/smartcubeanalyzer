@@ -7,7 +7,7 @@ import { MultiSelect, Option } from "react-multi-select-component";
 import { CrossColor, FilterPanelProps, FilterPanelState, Filters, MethodName, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
 import { ChartPanel } from "./ChartPanel";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
-import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText } from 'react-bootstrap';
+import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateWindowSize } from "../Helpers/CubeHelpers";
 import ReactSwitch from "react-switch";
@@ -836,6 +836,13 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             );
         }
 
+        const loading = this.props.isParsing && this.state.allSolves.length === 0 ? (
+            <Container className="py-5 text-center">
+                <Spinner animation="border" role="status" />
+                <div className="mt-3">Parsing CSV and preparing charts...</div>
+            </Container>
+        ) : null;
+
         return (
             <main className="body">
                 <section className="dashboard">
@@ -847,6 +854,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                             {filters}
                         </Offcanvas.Body>
                     </Offcanvas>
+                    {loading}
                     {analysis}
                 </section>
             </main >
