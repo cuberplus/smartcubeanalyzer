@@ -1,5 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
-import { analyzeStepMoves, computeCaseFailureStats, computeAufInefficiency, computeSolveEfficiency } from '../Helpers/MoveAnalysis';
+import { analyzeStepMoves, computeCaseFailureStats, computeAufInefficiency, computeSolveEfficiency, coreMovesCount } from '../Helpers/MoveAnalysis';
+import { aufMovesForFace } from '../Helpers/CsvParser';
 import { GetEmptySolve, GetEmptyStep } from '../Helpers/CubeHelpers';
 import { CaseStats, StepName } from '../Helpers/Types';
 
@@ -78,6 +79,13 @@ describe('analyzeStepMoves', () => {
         const result = analyzeStepMoves("R U R' F F'");
         expect(result.wastedMoves).toBe(2);
         expect(result.simplifiedTurns).toBe(3);
+    });
+});
+
+describe('coreMovesCount', () => {
+    test('supports custom AUF move set (D-based)', () => {
+        const dAufMoves = aufMovesForFace('D');
+        expect(coreMovesCount("D R D'", dAufMoves)).toBe(1);
     });
 });
 

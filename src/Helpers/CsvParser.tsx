@@ -9,6 +9,63 @@ export const ROTATIONS = new Set([
     "y", "y'", "y2", "y3",
     "z", "z'", "z2", "z3"
 ]);
+const ACUBEMY_AUF_REMAP_CUTOFF_UTC = new Date('2025-10-21T13:00:00.000Z');
+type FaceLetter = 'U' | 'D' | 'L' | 'R' | 'F' | 'B';
+
+export function aufMovesForFace(face: FaceLetter): Set<string> {
+    return new Set([face, `${face}'`, `${face}2`, `${face}2'`, `${face}3`, `${face}3'`]);
+}
+
+function getAcubemyAufFaceForCrossFace(crossFace: string | undefined | null): FaceLetter {
+    switch ((crossFace ?? '').toUpperCase()) {
+        case 'U':
+            return 'D';
+        case 'L':
+            return 'R';
+        case 'R':
+            return 'L';
+        case 'F':
+            return 'B';
+        case 'B':
+            return 'F';
+        case 'D':
+        default:
+            return 'U';
+    }
+}
+
+function crossFaceFromCrossColor(crossColor: CrossColor): FaceLetter | null {
+    switch (crossColor) {
+        case CrossColor.White:
+            return 'D';
+        case CrossColor.Yellow:
+            return 'U';
+        case CrossColor.Orange:
+            return 'L';
+        case CrossColor.Red:
+            return 'R';
+        case CrossColor.Green:
+            return 'F';
+        case CrossColor.Blue:
+            return 'B';
+        default:
+            return null;
+    }
+}
+
+function isAcubemyBeforeAufCutoff(date: Date): boolean {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+    return date.getTime() < ACUBEMY_AUF_REMAP_CUTOFF_UTC.getTime();
+}
+
+export function getAufMovesForSolve(solve: Pick<Solve, 'source' | 'date' | 'crossColor'>): Set<string> {
+    if (solve.source !== 'acubemy' || !isAcubemyBeforeAufCutoff(solve.date)) {
+        return AUF_MOVES;
+    }
+    const crossFace = crossFaceFromCrossColor(solve.crossColor);
+    const aufFace = getAcubemyAufFaceForCrossFace(crossFace ?? 'D');
+    return aufMovesForFace(aufFace);
+}
 
 export type MoveTiming = { move: string; timestamp: number };
 
@@ -65,7 +122,8 @@ function computeLeadingAufDurationMs(recordedMoves: string): number {
 export function computeStepSegments(
     moves: MoveTiming[],
     prevEndTsMs: number | null,
-    stepName: StepName
+    stepName: StepName,
+    aufMoves: Set<string> = AUF_MOVES
 ): StepSegments {
     const zero = { recognition: 0, preAuf: 0, coreExecution: 0, postAuf: 0 };
     if (!moves.length) return zero;
@@ -86,14 +144,14 @@ export function computeStepSegments(
 
     let firstNonU: number | null = null;
     for (let i = 0; i < moves.length; i++) {
-        if (!AUF_MOVES.has(moves[i].move)) {
+        if (!aufMoves.has(moves[i].move)) {
             firstNonU = i;
             break;
         }
     }
     let lastNonU: number | null = null;
     for (let i = moves.length - 1; i >= 0; i--) {
-        if (!AUF_MOVES.has(moves[i].move)) {
+        if (!aufMoves.has(moves[i].move)) {
             lastNonU = i;
             break;
         }
@@ -385,6 +443,24 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         }
     };
 
+    const initEmptyMethodSteps = (solve: Solve, method: MethodName) => {
+        const stepNames = Const.MethodSteps[method];
+        for (let i = 0; i < solve.steps.length; i++) {
+            const s = solve.steps[i];
+            const name = stepNames[i] ?? stepNames[stepNames.length - 1] ?? StepName.Cross;
+            s.name = name;
+            s.time = 0;
+            s.recognitionTime = 0;
+            s.executionTime = 0;
+            s.preAufTime = 0;
+            s.postAufTime = 0;
+            s.turns = 0;
+            s.tps = 0;
+            s.moves = '';
+            s.case = '';
+        }
+    };
+
     const normalizeAcubemyLastLayerCases = (
         steps: Solve["steps"],
         ollCaseRaw: string,
@@ -459,7 +535,8 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         solve: Solve,
         stepDefs: AcubemyStepDef[],
         solutionMovesRaw: string | undefined | null,
-        moveTimesRaw: string | undefined | null
+        moveTimesRaw: string | undefined | null,
+        aufMoves: Set<string> = AUF_MOVES
     ) => {
         const solutionTokens = tokenizeMoves(solutionMovesRaw);
         if (!solutionTokens.length || !moveTimesRaw || !moveTimesRaw.trim()) {
@@ -539,7 +616,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             }
 
             const prevEndTsMs = prevEndIdx == null ? null : timeTokens[prevEndIdx];
-            const seg = computeStepSegments(moveTimings, prevEndTsMs, s.name);
+            const seg = computeStepSegments(moveTimings, prevEndTsMs, s.name, aufMoves);
 
             s.recognitionTime = seg.recognition;
             s.preAufTime = seg.preAuf;
@@ -590,8 +667,12 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
         solve.session = get("session_name");
 
-        const analysisType = get("analysis_type");
-        if (analysisType && analysisType.toUpperCase().includes("CFOP")) {
+        const analysisType = get("analysis_type")?.toUpperCase() ?? "";
+        if (analysisType.includes("ROUX")) {
+            solve.method = MethodName.Roux;
+        } else if (analysisType.includes("ZZ")) {
+            solve.method = MethodName.ZZ;
+        } else if (analysisType.includes("CFOP")) {
             solve.method = MethodName.CFOP;
         }
 
@@ -626,8 +707,12 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         const ollCaseRaw = get("oll_case_id");
         const pllCaseRaw = get("pll_case_name");
 
-        initAcubemySteps(steps, get);
-        normalizeAcubemyLastLayerCases(steps, ollCaseRaw, pllCaseRaw);
+        if (solve.method === MethodName.CFOP) {
+            initAcubemySteps(steps, get);
+            normalizeAcubemyLastLayerCases(steps, ollCaseRaw, pllCaseRaw);
+        } else {
+            initEmptyMethodSteps(solve, solve.method);
+        }
 
         const solutionMovesRaw = get("solution") || get("raw_solution");
         const moveTimesRaw = get("move_times");
@@ -635,12 +720,14 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
         computeAcubemySolveTurnsAndTps(solve, solutionNoRot || solutionMovesRaw);
 
-        if (solutionNoRot && moveTimesNoRot) {
+        if (solve.method === MethodName.CFOP && solutionNoRot && moveTimesNoRot) {
+            const solveAufMoves = getAufMovesForSolve(solve);
             recomputeAcubemyStepTimes(
                 solve,
                 ACUBEMY_STEP_DEFS,
                 solutionNoRot,
-                moveTimesNoRot
+                moveTimesNoRot,
+                solveAufMoves
             );
         }
 

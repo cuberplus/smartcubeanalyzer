@@ -53,7 +53,8 @@ export function CalculateMostUsedMethod(solves: Solve[]): MethodName {
         [MethodName.CFOP_2OLL]: 0,
         [MethodName.CFOP_4LL]: 0,
         [MethodName.LayerByLayer]: 0,
-        [MethodName.Roux]: 0
+        [MethodName.Roux]: 0,
+        [MethodName.ZZ]: 0
     }
 
     let max = 0;
@@ -72,8 +73,12 @@ export function CalculateMostUsedMethod(solves: Solve[]): MethodName {
 
 // If user doesn't have enough solves, choose a smaller window size to show their data
 export function CalculateWindowSize(solveCount: number): number {
+    if (!Number.isFinite(solveCount) || solveCount <= 0) {
+        return 5;
+    }
+
     let reducedWindowSize = Math.ceil(solveCount / 4);
-    return Math.min(reducedWindowSize, Const.DefaultWindowSize);
+    return Math.max(5, Math.min(reducedWindowSize, Const.DefaultWindowSize));
 }
 
 export function CalculateAllSessionOptions(solves: Solve[]): Option[] {

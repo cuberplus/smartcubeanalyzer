@@ -1,4 +1,4 @@
-import { AUF_MOVES, ROTATIONS, tokenizeMoves } from "./CsvParser";
+import { AUF_MOVES, ROTATIONS, getAufMovesForSolve, tokenizeMoves } from "./CsvParser";
 import { AufInefficiency, CaseStats, MoveAnalysisResult, RedundantPair, Solve, SolveEfficiency, Step } from "./Types";
 
 /**
@@ -40,7 +40,7 @@ function quarterTurnsToNotation(face: string, qt: number): string {
     return "";
 }
 
-export function analyzeStepMoves(movesString: string): MoveAnalysisResult {
+export function analyzeStepMoves(movesString: string, _aufMoves: Set<string> = AUF_MOVES): MoveAnalysisResult {
     const tokens = tokenizeMoves(movesString);
     if (tokens.length === 0) {
         return { originalTurns: 0, simplifiedTurns: 0, wastedMoves: 0, redundantPairs: [] };
@@ -93,33 +93,33 @@ export function analyzeStepMoves(movesString: string): MoveAnalysisResult {
     return { originalTurns, simplifiedTurns, wastedMoves, redundantPairs };
 }
 
-function countAufMoves(tokens: string[], direction: 'leading' | 'trailing'): number {
+function countAufMoves(tokens: string[], direction: 'leading' | 'trailing', aufMoves: Set<string> = AUF_MOVES): number {
     let count = 0;
     if (direction === 'leading') {
         for (const t of tokens) {
-            if (AUF_MOVES.has(t)) count++;
+            if (aufMoves.has(t)) count++;
             else break;
         }
     } else {
         for (let i = tokens.length - 1; i >= 0; i--) {
-            if (AUF_MOVES.has(tokens[i])) count++;
+            if (aufMoves.has(tokens[i])) count++;
             else break;
         }
     }
     return count;
 }
 
-function isRotationOrAuf(t: string): boolean {
-    return ROTATIONS.has(t.toLowerCase()) || AUF_MOVES.has(t);
+function isRotationOrAuf(t: string, aufMoves: Set<string> = AUF_MOVES): boolean {
+    return ROTATIONS.has(t.toLowerCase()) || aufMoves.has(t);
 }
 
-export function coreMovesCount(movesString: string): number {
+export function coreMovesCount(movesString: string, aufMoves: Set<string> = AUF_MOVES): number {
     const tokens = tokenizeMoves(movesString);
     if (tokens.length === 0) return 0;
     let start = 0;
-    while (start < tokens.length && isRotationOrAuf(tokens[start])) start++;
+    while (start < tokens.length && isRotationOrAuf(tokens[start], aufMoves)) start++;
     let end = tokens.length - 1;
-    while (end >= start && isRotationOrAuf(tokens[end])) end--;
+    while (end >= start && isRotationOrAuf(tokens[end], aufMoves)) end--;
     let count = 0;
     for (let i = start; i <= end; i++) {
         if (!ROTATIONS.has(tokens[i].toLowerCase())) count++;
@@ -164,7 +164,8 @@ export function computeCaseFailureStats(
 
         const caseName = step.case;
         if (!(caseName in caseMap)) caseMap[caseName] = [];
-        const core = coreMovesCount(step.moves);
+        const solveAufMoves = getAufMovesForSolve(solve);
+        const core = coreMovesCount(step.moves, solveAufMoves);
         caseMap[caseName].push({ solveId: solve.id, coreMoves: core, totalTurns: step.turns, stepTime: step.time });
     }
 
@@ -234,7 +235,7 @@ export function computeSolveEfficiency(
 
     for (const step of solve.steps) {
         if (!step.moves) continue;
-        const analysis = analyzeStepMoves(step.moves);
+        const analysis = analyzeStepMoves(step.moves, getAufMovesForSolve(solve));
         totalOriginal += analysis.originalTurns;
         totalSimplified += analysis.simplifiedTurns;
     }

@@ -11,7 +11,7 @@ import ReactGA from 'react-ga4';
 import { ThemeContext } from "../contexts/ThemeContext";
 
 export class FileInput extends React.Component<FileInputProps, FileInputState> {
-    state: FileInputState = { solves: [], showHelpModal: false };
+    state: FileInputState = { solves: [], showHelpModal: false, isParsing: false };
 
     constructor(props: FileInputProps) {
         super(props);
@@ -26,6 +26,8 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             return;
         }
 
+        this.setState({ isParsing: true });
+
         const filePromises: Promise<Solve[]>[] = [];
 
         for (let i = 0; i < files.length; i++) {
@@ -35,32 +37,41 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             filePromises.push(textPromise);
         }
 
-        Promise.all(filePromises).then((results: Solve[][]) => {
-            const solveList: Solve[] = results.flat();
-            solveList.sort((a, b) => a.date.getTime() - b.date.getTime());
+        Promise.all(filePromises)
+            .then((results: Solve[][]) => {
+                const solveList: Solve[] = results.flat();
+                solveList.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-            const method = CalculateMostUsedMethod(solveList);
-            const suggestedMethod: Option = { label: method, value: method };
-            const suggestedSessions = CalculateAllSessionOptions(solveList);
-            const suggestedWindowSize = CalculateWindowSize(solveList.length);
+                const method = CalculateMostUsedMethod(solveList);
+                const suggestedMethod: Option = { label: method, value: method };
+                const suggestedSessions = CalculateAllSessionOptions(solveList);
+                const suggestedWindowSize = CalculateWindowSize(solveList.length);
 
-            this.setState({
-                solves: solveList,
-                suggestedMethod,
-                suggestedSessions,
-                suggestedWindowSize,
-                showTestAlert: false
+                this.setState({
+                    solves: solveList,
+                    suggestedMethod,
+                    suggestedSessions,
+                    suggestedWindowSize,
+                    showTestAlert: false
+                });
+
+                ReactGA.event({
+                    category: 'DataLoaded',
+                    action: 'Loaded User Data',
+                    value: solveList.length
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to parse uploaded data:', err);
+            })
+            .finally(() => {
+                this.setState({ isParsing: false });
             });
-
-            ReactGA.event({
-                category: 'DataLoaded',
-                action: 'Loaded User Data',
-                value: solveList.length
-            });
-        });
     };
 
     showTestData() {
+        this.setState({ isParsing: true });
+
         GetDemoData()
             .then((csv) => {
                 const solveList: Solve[] = parseCsv(csv, ',');
@@ -85,6 +96,9 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             })
             .catch((err) => {
                 console.error('Failed to load demo data:', err);
+            })
+            .finally(() => {
+                this.setState({ isParsing: false });
             });
     }
 
@@ -143,11 +157,11 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                                 <FormControl type="file" id="uploaded_data" accept=".csv" multiple />
                             </Form>
                             <ButtonGroup className="m-2">
-                                <Button className="col-8" variant="success" onClick={() => { this.showFileData(); }}>
-                                    Display My Stats!
+                                <Button className="col-8" variant="success" disabled={this.state.isParsing} onClick={() => { this.showFileData(); }}>
+                                    {this.state.isParsing ? "Parsing..." : "Display My Stats!"}
                                 </Button>
-                                <Button className="col-4" onClick={() => { this.showTestData(); }}>
-                                    Display Test Stats!
+                                <Button className="col-4" disabled={this.state.isParsing} onClick={() => { this.showTestData(); }}>
+                                    {this.state.isParsing ? "Parsing..." : "Display Test Stats!"}
                                 </Button>
                             </ButtonGroup>
                         </Card>
@@ -159,6 +173,7 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                         suggestedSessions={this.state.suggestedSessions}
                         suggestedWindowSize={this.state.suggestedWindowSize}
                         showTestAlert={this.state.showTestAlert}
+                        isParsing={this.state.isParsing}
                     />
                 </Container>
             </div >
