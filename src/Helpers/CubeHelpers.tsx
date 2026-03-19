@@ -73,8 +73,12 @@ export function CalculateMostUsedMethod(solves: Solve[]): MethodName {
 
 // If user doesn't have enough solves, choose a smaller window size to show their data
 export function CalculateWindowSize(solveCount: number): number {
+    if (!Number.isFinite(solveCount) || solveCount <= 0) {
+        return 5;
+    }
+
     let reducedWindowSize = Math.ceil(solveCount / 4);
-    return Math.min(reducedWindowSize, Const.DefaultWindowSize);
+    return Math.max(5, Math.min(reducedWindowSize, Const.DefaultWindowSize));
 }
 
 export function CalculateAllSessionOptions(solves: Solve[]): Option[] {

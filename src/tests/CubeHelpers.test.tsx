@@ -67,6 +67,10 @@ test('CalculateMostUsedMethod can return ZZ', () => {
 test('CalculateWindowSize returns the correct window size', () => {
     expect(CalculateWindowSize(4000)).toBe(1000);
     expect(CalculateWindowSize(2000)).toBe(500);
+    expect(CalculateWindowSize(1)).toBe(5);
+    expect(CalculateWindowSize(0)).toBe(5);
+    expect(CalculateWindowSize(-20)).toBe(5);
+    expect(CalculateWindowSize(500000)).toBe(1000);
 });
 
 test('CalculateAllSessionOptions returns unique session options', () => {

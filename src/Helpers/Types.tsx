@@ -157,6 +157,7 @@ export interface FilterPanelState {
     solveLuckiness: Option[],
     chosenSources: Option[],
     tabKey: number,
+    autoWindowSize: boolean,
     windowSize: number,
     pointsPerGraph: number,
     showFilters: boolean,

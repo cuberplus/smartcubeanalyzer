@@ -9,7 +9,7 @@ import { ChartPanel } from "./ChartPanel";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
-import { CalculateAllSessionOptions } from "../Helpers/CubeHelpers";
+import { CalculateAllSessionOptions, CalculateWindowSize } from "../Helpers/CubeHelpers";
 import ReactSwitch from "react-switch";
 
 export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelState> {
@@ -57,6 +57,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         chosenPLLs: Const.PllCases,
         chosenOLLs: Const.OllCases,
         tabKey: 1,
+        autoWindowSize: true,
         windowSize: Const.DefaultWindowSize,
         pointsPerGraph: 100,
         showFilters: false,
@@ -271,6 +272,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 chosenSessions: prevState.chosenSessions,
                 chosenSources: prevState.chosenSources,
                 tabKey: prevState.tabKey,
+                autoWindowSize: prevState.autoWindowSize,
                 windowSize: prevState.windowSize,
                 pointsPerGraph: prevState.pointsPerGraph,
                 showFilters: prevState.showFilters,
@@ -301,6 +303,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             chosenSessions: prevState.chosenSessions,
             chosenSources: prevState.chosenSources,
             tabKey: prevState.tabKey,
+            autoWindowSize: prevState.autoWindowSize,
             windowSize: prevState.windowSize,
             pointsPerGraph: prevState.pointsPerGraph,
             showFilters: prevState.showFilters,
@@ -335,8 +338,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             }
         }
         newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
-        if (newState.filteredSolves.length > 0 && newState.windowSize >= newState.filteredSolves.length) {
-            newState.windowSize = Math.max(5, Math.ceil(newState.filteredSolves.length / 4));
+        if (newState.autoWindowSize) {
+            newState.windowSize = CalculateWindowSize(newState.filteredSolves.length);
+            newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
+        } else if (!Number.isFinite(newState.windowSize) || newState.windowSize < 5) {
+            newState.windowSize = 5;
         }
         newState.compressedSolves = FilterPanel.compressSolves(newState.filteredSolves, newState.filters.steps);
         newState.lastAppliedSolves = nextProps.solves;
@@ -481,7 +487,23 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     setWindowSize(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ windowSize: parseInt(event.target.value) })
+        const parsedWindowSize = parseInt(event.target.value);
+        this.setState({
+            windowSize: Number.isFinite(parsedWindowSize) ? Math.max(5, parsedWindowSize) : 5
+        })
+    }
+
+    setAutoWindowSize(checked: boolean) {
+        this.setState((prevState) => {
+            if (!checked) {
+                return { autoWindowSize: false, windowSize: prevState.windowSize };
+            }
+
+            return {
+                autoWindowSize: true,
+                windowSize: CalculateWindowSize(prevState.filteredSolves.length)
+            };
+        });
     }
 
     setPointsPerGraph(event: React.ChangeEvent<HTMLInputElement>) {
@@ -688,7 +710,13 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
-                        <FormControl min="5" max="10000" type="number" id="windowSize" value={this.state.windowSize} onChange={this.setWindowSize.bind(this)} />,
+                        <ReactSwitch id="autoWindowSize" checked={this.state.autoWindowSize} onChange={this.setAutoWindowSize.bind(this)} />,
+                        "Auto Sliding Window Size",
+                        "When enabled, the app automatically chooses a sliding window size based on how many solves are currently shown."
+                    )}
+
+                    {this.createFilterHtml(
+                        <FormControl min="5" max="10000" type="number" id="windowSize" value={this.state.windowSize} onChange={this.setWindowSize.bind(this)} disabled={this.state.autoWindowSize} />,
                         "Sliding Window Size",
                         "Choose the sliding window size. For example, the default is to show the average of 1000 solves, over time. If you see no data, you should try lowering this value."
                     )}
