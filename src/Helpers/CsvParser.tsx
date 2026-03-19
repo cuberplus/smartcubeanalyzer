@@ -385,6 +385,24 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         }
     };
 
+    const initEmptyMethodSteps = (solve: Solve, method: MethodName) => {
+        const stepNames = Const.MethodSteps[method];
+        for (let i = 0; i < solve.steps.length; i++) {
+            const s = solve.steps[i];
+            const name = stepNames[i] ?? stepNames[stepNames.length - 1] ?? StepName.Cross;
+            s.name = name;
+            s.time = 0;
+            s.recognitionTime = 0;
+            s.executionTime = 0;
+            s.preAufTime = 0;
+            s.postAufTime = 0;
+            s.turns = 0;
+            s.tps = 0;
+            s.moves = '';
+            s.case = '';
+        }
+    };
+
     const normalizeAcubemyLastLayerCases = (
         steps: Solve["steps"],
         ollCaseRaw: string,
@@ -590,8 +608,12 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
         solve.session = get("session_name");
 
-        const analysisType = get("analysis_type");
-        if (analysisType && analysisType.toUpperCase().includes("CFOP")) {
+        const analysisType = get("analysis_type")?.toUpperCase() ?? "";
+        if (analysisType.includes("ROUX")) {
+            solve.method = MethodName.Roux;
+        } else if (analysisType.includes("ZZ")) {
+            solve.method = MethodName.ZZ;
+        } else if (analysisType.includes("CFOP")) {
             solve.method = MethodName.CFOP;
         }
 
@@ -626,8 +648,12 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         const ollCaseRaw = get("oll_case_id");
         const pllCaseRaw = get("pll_case_name");
 
-        initAcubemySteps(steps, get);
-        normalizeAcubemyLastLayerCases(steps, ollCaseRaw, pllCaseRaw);
+        if (solve.method === MethodName.CFOP) {
+            initAcubemySteps(steps, get);
+            normalizeAcubemyLastLayerCases(steps, ollCaseRaw, pllCaseRaw);
+        } else {
+            initEmptyMethodSteps(solve, solve.method);
+        }
 
         const solutionMovesRaw = get("solution") || get("raw_solution");
         const moveTimesRaw = get("move_times");
@@ -635,7 +661,7 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
         computeAcubemySolveTurnsAndTps(solve, solutionNoRot || solutionMovesRaw);
 
-        if (solutionNoRot && moveTimesNoRot) {
+        if (solve.method === MethodName.CFOP && solutionNoRot && moveTimesNoRot) {
             recomputeAcubemyStepTimes(
                 solve,
                 ACUBEMY_STEP_DEFS,

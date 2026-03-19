@@ -49,9 +49,19 @@ test('CalculateMostUsedMethod returns the most used method', () => {
     const solves: Solve[] = [
         { ...GetEmptySolve(), method: MethodName.CFOP },
         { ...GetEmptySolve(), method: MethodName.Roux },
+        { ...GetEmptySolve(), method: MethodName.ZZ },
         { ...GetEmptySolve(), method: MethodName.CFOP }
     ];
     expect(CalculateMostUsedMethod(solves)).toBe(MethodName.CFOP);
+});
+
+test('CalculateMostUsedMethod can return ZZ', () => {
+    const solves: Solve[] = [
+        { ...GetEmptySolve(), method: MethodName.ZZ },
+        { ...GetEmptySolve(), method: MethodName.ZZ },
+        { ...GetEmptySolve(), method: MethodName.CFOP },
+    ];
+    expect(CalculateMostUsedMethod(solves)).toBe(MethodName.ZZ);
 });
 
 test('CalculateWindowSize returns the correct window size', () => {

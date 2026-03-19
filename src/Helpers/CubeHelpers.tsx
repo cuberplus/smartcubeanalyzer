@@ -53,7 +53,8 @@ export function CalculateMostUsedMethod(solves: Solve[]): MethodName {
         [MethodName.CFOP_2OLL]: 0,
         [MethodName.CFOP_4LL]: 0,
         [MethodName.LayerByLayer]: 0,
-        [MethodName.Roux]: 0
+        [MethodName.Roux]: 0,
+        [MethodName.ZZ]: 0
     }
 
     let max = 0;
