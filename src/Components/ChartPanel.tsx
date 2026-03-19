@@ -28,6 +28,7 @@ import {
     buildInspectionData as buildInspectionChartData,
     buildTypicalCompare as buildTypicalCompareChartData,
 } from "../Helpers/ChartDataBuilders";
+import { getAufMovesForSolve } from "../Helpers/CsvParser";
 
 ChartJS.register(CategoryScale);
 
@@ -569,7 +570,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 const solve = solveById.get(inst.solveId);
                 const step = solve?.steps[stepIndex];
                 const moves = step?.moves ?? "";
-                const coreMoves = coreMovesCount(moves);
+                const coreMoves = coreMovesCount(moves, getAufMovesForSolve(solve));
                 const stepTime = step?.time ?? 0;
                 console.log(`  solveId ${inst.solveId} — moves: "${moves}" — coreMoves: ${coreMoves} — time: ${stepTime.toFixed(3)}s — failed: ${inst.failed}`);
             }
@@ -593,7 +594,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 ? matchingSolves.reduce((sum: number, s: Solve) => sum + s.steps[0].time, 0) / matchingSolves.length
                 : 0;
             const avgWasted = matchingSolves.length > 0
-                ? matchingSolves.reduce((sum: number, s: Solve) => sum + analyzeStepMoves(s.steps[0].moves).wastedMoves, 0) / matchingSolves.length
+                ? matchingSolves.reduce((sum: number, s: Solve) => sum + analyzeStepMoves(s.steps[0].moves, getAufMovesForSolve(s)).wastedMoves, 0) / matchingSolves.length
                 : 0;
 
             return {
