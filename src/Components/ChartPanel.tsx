@@ -380,7 +380,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         let ao5 = Math.min.apply(null, calculateMovingAverage(times, 5));
         let ao12 = Math.min.apply(null, calculateMovingAverageChopped(times, 12, 1));
         let ao100 = Math.min.apply(null, calculateMovingAverageChopped(times, 100, 5));
-        //let ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
+        let ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
 
         const cols = [
             { key: 'recordType', name: 'Record Type' },
@@ -392,7 +392,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             { recordType: 'Ao5', time: ao5.toFixed(3) },
             { recordType: 'Ao12', time: ao12.toFixed(3) },
             { recordType: 'Ao100', time: ao100.toFixed(3) },
-            //{ recordType: 'Ao1000', time: ao1000.toFixed(3) }
+            { recordType: 'Ao1000', time: ao1000.toFixed(3) }
         ];
 
         const data = (<DataGrid rows={rows} columns={cols} />);
@@ -415,7 +415,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         let ao5 = calculateMovingAverage(this.props.solves.map(x => x.time), 5);
         let ao12 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 12, 1);
         let ao100 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 100, 5);
-        //let ao1000 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 1000, 50);
+        let ao1000 = calculateMovingAverageChopped(this.props.solves.map(x => x.time), 1000, 50);
 
         // Start initial records
         let records = {
@@ -423,7 +423,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             ao5: this.buildRecordDataset(dates.slice(4), ao5),
             ao12: this.buildRecordDataset(dates.slice(11), ao12),
             ao100: this.buildRecordDataset(dates.slice(99), ao100),
-            //ao1000: this.buildRecordDataset(dates.slice(999), ao1000)
+            ao1000: this.buildRecordDataset(dates.slice(999), ao1000)
         };
 
         // Display the charts
@@ -445,10 +445,10 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                     label: `Record Ao100`,
                     data: records.ao100
                 },
-                //{
-                //    label: `Record Ao1000`,
-                //    data: records.ao1000
-                //}
+                {
+                    label: `Record Ao1000`,
+                    data: records.ao1000
+                }
             ]
         }
 

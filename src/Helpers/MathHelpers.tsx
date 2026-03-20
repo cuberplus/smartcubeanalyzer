@@ -64,41 +64,95 @@ export function calculateMovingAverage(data: number[], window: number): number[]
     return result;
 };
 
+function insertSorted(arr: number[], val: number): void {
+    let lo = 0, hi = arr.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] < val) lo = mid + 1;
+        else hi = mid;
+    }
+    arr.splice(lo, 0, val);
+}
+
+function removeSorted(arr: number[], val: number): void {
+    let lo = 0, hi = arr.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] < val) lo = mid + 1;
+        else hi = mid;
+    }
+    arr.splice(lo, 1);
+}
+
 export function calculateMovingAverageChopped(data: number[], window: number, chop: number): number[] {
-    if (chop * 2 >= window) {
-        throw new Error("Bad chop")
-    }
-    if (chop <= 0) {
-        throw new Error("Bad chop")
-    }
+    if (chop <= 0) throw new Error("Bad chop");
+    if (chop * 2 >= window) throw new Error("Bad chop");
 
-    let result: number[] = [];
-    if (data.length < window) {
-        return result;
-    }
+    const result: number[] = [];
+    if (data.length < window) return result;
 
-    var inWindow = new Set();
-    var trueWindow = window - (chop * 2);
-    const steps = data.length - window - 1;
+    const trueWindow = window - chop * 2;
 
-    let sum = 0;
-    for (let i = 0; i < window; ++i) {
-        sum += data[i];
-        inWindow.add(data[i]);
-    }
+    // Seed the three sorted arrays from the first window
+    const sorted = data.slice(0, window).sort((a, b) => a - b);
+    const chopLo: number[] = sorted.slice(0, chop);            // chop smallest
+    const included: number[] = sorted.slice(chop, chop + trueWindow); // middle
+    const chopHi: number[] = sorted.slice(chop + trueWindow);  // chop largest
+    let includedSum = included.reduce((a, b) => a + b, 0);
 
-    let minTotalHere = sumArray(inWindow.slice(0, chop));
-    let maxTotalHere = sumArray(inWindow.slice(-chop));
-    result.push((sum - minTotalHere - maxTotalHere) / trueWindow)
+    result.push(includedSum / trueWindow);
 
-    for (let i = 0; i < steps; ++i) {
-        sum -= data[i];
-        sum += data[i + window];
-        inWindow.del(data[i]);
-        inWindow.add(data[i + window])
-        let minTotalHere = sumArray(inWindow.slice(0, chop));
-        let maxTotalHere = sumArray(inWindow.slice(-chop));
-        result.push((sum - minTotalHere - maxTotalHere) / trueWindow)
+    for (let i = window; i < data.length; i++) {
+        const outgoing = data[i - window];
+        const incoming = data[i];
+
+        // Remove outgoing from the lowest set whose max covers it
+        if (chopLo.length > 0 && outgoing <= chopLo[chopLo.length - 1]) {
+            removeSorted(chopLo, outgoing);
+        } else if (chopHi.length > 0 && outgoing >= chopHi[0]) {
+            removeSorted(chopHi, outgoing);
+        } else {
+            removeSorted(included, outgoing);
+            includedSum -= outgoing;
+        }
+
+        // Add incoming to the appropriate set
+        if (chopLo.length > 0 && incoming <= chopLo[chopLo.length - 1]) {
+            insertSorted(chopLo, incoming);
+        } else if (chopHi.length > 0 && incoming >= chopHi[0]) {
+            insertSorted(chopHi, incoming);
+        } else {
+            insertSorted(included, incoming);
+            includedSum += incoming;
+        }
+
+        // Rebalance chopLo to exactly chop elements
+        if (chopLo.length < chop) {
+            // Borrow smallest of included
+            const val = included.shift()!;
+            includedSum -= val;
+            chopLo.push(val); // val >= all current chopLo elements
+        } else if (chopLo.length > chop) {
+            // Return largest of chopLo to included
+            const val = chopLo.pop()!;
+            included.unshift(val); // val <= all current included elements
+            includedSum += val;
+        }
+
+        // Rebalance chopHi to exactly chop elements
+        if (chopHi.length < chop) {
+            // Borrow largest of included
+            const val = included.pop()!;
+            includedSum -= val;
+            chopHi.unshift(val); // val <= all current chopHi elements
+        } else if (chopHi.length > chop) {
+            // Return smallest of chopHi to included
+            const val = chopHi.shift()!;
+            included.push(val); // val >= all current included elements
+            includedSum += val;
+        }
+
+        result.push(includedSum / trueWindow);
     }
 
     return result;
