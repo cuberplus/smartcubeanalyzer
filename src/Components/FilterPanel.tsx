@@ -548,6 +548,55 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         this.setState({ showFilters: false });
     }
 
+    resetFilters() {
+        const allSessions = CalculateAllSessionOptions(this.state.allSolves);
+        const method = this.state.method;
+        const methodName = method.value as MethodName;
+        this.setState({
+            filters: {
+                sources: ['cubeast', 'acubemy'],
+                startDate: moment.utc("1700-01-01").toDate(),
+                endDate: moment.utc("2300-01-01").toDate(),
+                fastestTime: 0,
+                slowestTime: 300,
+                crossColors: [CrossColor.White, CrossColor.Yellow, CrossColor.Blue, CrossColor.Green, CrossColor.Orange, CrossColor.Red, CrossColor.Unknown],
+                pllCases: Const.PllCases.map(x => x.value),
+                ollCases: Const.OllCases.map(x => x.value),
+                steps: Const.MethodSteps[methodName],
+                solveCleanliness: Const.solveCleanliness.map(x => x.value),
+                solveLuckiness: Const.solveLuckiness.map(x => x.value),
+                method: methodName,
+                sessions: allSessions.map(x => x.value),
+                lowestInspection: 0,
+                highestInspection: 300,
+            },
+            chosenSteps: FilterPanel.getStepOptionsForMethod(methodName),
+            chosenColors: [
+                { label: CrossColor.White, value: CrossColor.White },
+                { label: CrossColor.Yellow, value: CrossColor.Yellow },
+                { label: CrossColor.Red, value: CrossColor.Red },
+                { label: CrossColor.Orange, value: CrossColor.Orange },
+                { label: CrossColor.Blue, value: CrossColor.Blue },
+                { label: CrossColor.Green, value: CrossColor.Green },
+                { label: CrossColor.Unknown, value: CrossColor.Unknown },
+            ],
+            chosenSessions: allSessions,
+            chosenSources: [
+                { label: 'Cubeast', value: 'cubeast' },
+                { label: 'Acubemy', value: 'acubemy' },
+            ],
+            chosenPLLs: Const.PllCases,
+            chosenOLLs: Const.OllCases,
+            solveCleanliness: Const.solveCleanliness,
+            solveLuckiness: Const.solveLuckiness,
+            autoWindowSize: true,
+            badTime: 20,
+            goodTime: 15,
+            useLogScale: false,
+            use4SegmentTiming: true,
+        });
+    }
+
     hideAlert() {
         this.setState({ showTestAlert: false });
     }
@@ -848,7 +897,10 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 <section className="dashboard">
                     <Offcanvas show={this.state.showFilters} onHide={this.hideFilters.bind(this)}>
                         <Offcanvas.Header closeButton>
-                            <Offcanvas.Title>Choose solves to show!</Offcanvas.Title>
+                            <Offcanvas.Title className="me-3">Choose solves to show!</Offcanvas.Title>
+                            <Button variant="outline-secondary" size="sm" onClick={this.resetFilters.bind(this)}>
+                                Reset filters
+                            </Button>
                         </Offcanvas.Header>
                         <Offcanvas.Body>
                             {filters}
