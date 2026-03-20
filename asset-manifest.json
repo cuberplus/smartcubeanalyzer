@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/smartcubeanalyzer/static/css/main.7ffd7067.css",
-    "main.js": "/smartcubeanalyzer/static/js/main.669e7a8e.js",
+    "main.js": "/smartcubeanalyzer/static/js/main.1f5feda6.js",
     "static/media/CubeastCsv.png": "/smartcubeanalyzer/static/media/CubeastCsv.9bdabd9952094f75b181.png",
     "static/media/CubeastDownload.png": "/smartcubeanalyzer/static/media/CubeastDownload.0e1f2eb5dc8b36075133.png",
     "static/media/AnalyzerSteps.png": "/smartcubeanalyzer/static/media/AnalyzerSteps.4d719b32ac330c56dd7a.png",
     "index.html": "/smartcubeanalyzer/index.html",
     "main.7ffd7067.css.map": "/smartcubeanalyzer/static/css/main.7ffd7067.css.map",
-    "main.669e7a8e.js.map": "/smartcubeanalyzer/static/js/main.669e7a8e.js.map"
+    "main.1f5feda6.js.map": "/smartcubeanalyzer/static/js/main.1f5feda6.js.map"
   },
   "entrypoints": [
     "static/css/main.7ffd7067.css",
-    "static/js/main.669e7a8e.js"
+    "static/js/main.1f5feda6.js"
   ]
 }
