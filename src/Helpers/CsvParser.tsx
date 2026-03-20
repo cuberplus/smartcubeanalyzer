@@ -10,6 +10,8 @@ export const ROTATIONS = new Set([
     "z", "z'", "z2", "z3"
 ]);
 const ACUBEMY_AUF_REMAP_CUTOFF_UTC = new Date('2025-10-21T13:00:00.000Z');
+const MOVE_TIMESTAMP_RE = /^(.+)\[(\d+)\]$/;
+const BRACKET_CONTENT_RE = /\[[^\]]*\]/g;
 type FaceLetter = 'U' | 'D' | 'L' | 'R' | 'F' | 'B';
 
 export function aufMovesForFace(face: FaceLetter): Set<string> {
@@ -75,7 +77,7 @@ export function parseRecordedMoves(raw: string): MoveTiming[] {
     const tokens = raw.trim().split(/\s+/);
     const result: MoveTiming[] = [];
     for (const token of tokens) {
-        const m = token.match(/^(.+)\[(\d+)\]$/);
+        const m = token.match(MOVE_TIMESTAMP_RE);
         if (!m) continue;
         const move = m[1];
         if (ROTATIONS.has(move.toLowerCase())) continue;
@@ -97,7 +99,7 @@ function computeLeadingAufDurationMs(recordedMoves: string): number {
     const tokens = recordedMoves.trim().split(/\s+/);
     let firstAufTs: number | null = null;
     for (const token of tokens) {
-        const m = token.match(/^(.+)\[(\d+)\]$/);
+        const m = token.match(MOVE_TIMESTAMP_RE);
         if (!m) continue;
         const move = m[1];
         const ts = Number(m[2]);
@@ -110,7 +112,7 @@ function computeLeadingAufDurationMs(recordedMoves: string): number {
     }
     let lastAufTs: number | null = null;
     for (let i = tokens.length - 1; i >= 0; i--) {
-        const m = tokens[i].match(/^(.+)\[(\d+)\]$/);
+        const m = tokens[i].match(MOVE_TIMESTAMP_RE);
         if (!m) continue;
         if (AUF_MOVES.has(m[1])) lastAufTs = Number(m[2]);
         else break;
@@ -226,7 +228,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     
     // Replace commas inside [...] so split(splitter) does not break on e.g. step case "[FL,BR]->FR 30".
     // Preserves bracket content (including timestamps in step_N_recorded_moves) for AUF parsing.
-    const normalized = stringVal.trim().replace(/\[[^\]]*\]/g, (m) => m.replace(/,/g, COMMA_PLACEHOLDER));
+    const normalized = stringVal.trim().replace(BRACKET_CONTENT_RE, (m) => m.replace(/,/g, COMMA_PLACEHOLDER));
 
     const [keys, ...rest] = normalized
         .split("\n")
