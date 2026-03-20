@@ -12,6 +12,20 @@ import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateBenchmarkTimes, CalculateWindowSize } from "../Helpers/CubeHelpers";
 import ReactSwitch from "react-switch";
 
+function defaultDateRange(): Pick<Filters, 'startDate' | 'endDate'> {
+    return {
+        startDate: moment().subtract(5, 'years').startOf('day').toDate(),
+        endDate: moment().endOf('day').toDate(),
+    };
+}
+
+function datePickerFormat(): string {
+    if (typeof navigator !== 'undefined' && /^en-US$/i.test(navigator.language ?? '')) {
+        return 'MM/dd/yyyy';
+    }
+    return 'dd/MM/yyyy';
+}
+
 export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelState> {
     state: FilterPanelState = {
         allSolves: [],
@@ -22,8 +36,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         lastAppliedWindowSize: Const.DefaultWindowSize,
         filters: {
             sources: ['cubeast', 'acubemy'],
-            startDate: moment.utc("1700-01-01").toDate(),
-            endDate: moment.utc("2300-01-01").toDate(),
+            ...defaultDateRange(),
             fastestTime: 0,
             slowestTime: 300,
             crossColors: [CrossColor.White, CrossColor.Yellow, CrossColor.Blue, CrossColor.Green, CrossColor.Orange, CrossColor.Red, CrossColor.Unknown],
@@ -592,8 +605,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         this.setState({
             filters: {
                 sources: ['cubeast', 'acubemy'],
-                startDate: moment.utc("1700-01-01").toDate(),
-                endDate: moment.utc("2300-01-01").toDate(),
+                ...defaultDateRange(),
                 fastestTime: 0,
                 slowestTime: 300,
                 crossColors: [CrossColor.White, CrossColor.Yellow, CrossColor.Blue, CrossColor.Green, CrossColor.Orange, CrossColor.Red, CrossColor.Unknown],
@@ -862,6 +874,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         <DatePicker
                             selected={this.state.filters.startDate}
                             onChange={this.setStartDate.bind(this)}
+                            dateFormat={datePickerFormat()}
                             popperContainer={({ children }) => createPortal(children, document.body)}
                             popperProps={{ strategy: "fixed" }}
                         />,
@@ -873,6 +886,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         <DatePicker
                             selected={this.state.filters.endDate}
                             onChange={this.setEndDate.bind(this)}
+                            dateFormat={datePickerFormat()}
                             popperContainer={({ children }) => createPortal(children, document.body)}
                             popperProps={{ strategy: "fixed" }}
                         />,
