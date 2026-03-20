@@ -769,15 +769,17 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
-                        <ReactSwitch id="autoWindowSize" checked={this.state.autoWindowSize} onChange={this.setAutoWindowSize.bind(this)} />,
-                        "Auto Sliding Window Size",
-                        "When enabled, the app automatically chooses a sliding window size based on how many solves are currently shown."
-                    )}
-
-                    {this.createFilterHtml(
-                        <FormControl min="5" max="10000" type="number" id="windowSize" value={this.state.windowSize} onChange={this.setWindowSize.bind(this)} disabled={this.state.autoWindowSize} />,
+                        <div className="row align-items-center g-2">
+                            <div className="col-auto d-flex align-items-center gap-2">
+                                <span className="small">Auto</span>
+                                <ReactSwitch id="autoWindowSize" checked={this.state.autoWindowSize} onChange={this.setAutoWindowSize.bind(this)} />
+                            </div>
+                            <div className="col">
+                                <FormControl min="5" max="10000" type="number" id="windowSize" value={this.state.windowSize} onChange={this.setWindowSize.bind(this)} disabled={this.state.autoWindowSize} />
+                            </div>
+                        </div>,
                         "Sliding Window Size",
-                        "Choose the sliding window size. For example, the default is to show the average of 1000 solves, over time. If you see no data, you should try lowering this value."
+                        "Choose the sliding window size. When Auto is enabled, the size is chosen automatically based on how many solves are shown. If you see no data, try lowering this value."
                     )}
 
                     {this.createFilterHtml(
