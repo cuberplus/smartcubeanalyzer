@@ -1,4 +1,4 @@
-import { Option } from "react-multi-select-component";
+import { Option } from "./Types";
 import { Const } from "./Constants";
 import { CrossColor, MethodName, Solve, Step, StepName } from "./Types";
 

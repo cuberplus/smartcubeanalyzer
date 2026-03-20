@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import moment from "moment";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
-import { MultiSelect, Option } from "react-multi-select-component";
-import { CrossColor, FilterPanelProps, FilterPanelState, Filters, MethodName, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
+import { MultiSelect } from "react-multi-select-component";
+import { CrossColor, FilterPanelProps, FilterPanelState, Filters, MethodName, Option, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
 import { ChartPanel } from "./ChartPanel";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
@@ -337,13 +337,12 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 newState.showTestAlert = nextProps.showTestAlert;
             }
         }
-        newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
         if (newState.autoWindowSize) {
-            newState.windowSize = CalculateWindowSize(newState.filteredSolves.length);
-            newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
+            newState.windowSize = CalculateWindowSize(nextProps.solves.length);
         } else if (!Number.isFinite(newState.windowSize) || newState.windowSize < 5) {
             newState.windowSize = 5;
         }
+        newState.filteredSolves = FilterPanel.applyFiltersToSolves(nextProps.solves, newState.filters, newState.windowSize);
         newState.compressedSolves = FilterPanel.compressSolves(newState.filteredSolves, newState.filters.steps);
         newState.lastAppliedSolves = nextProps.solves;
         newState.lastAppliedFilters = newState.filters;

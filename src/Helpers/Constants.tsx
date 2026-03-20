@@ -1,4 +1,4 @@
-import { Option } from "react-multi-select-component";
+import { Option } from "./Types";
 import { CrossColor, MethodName, OllEdgeOrientation, PllCornerPermutation, StepName } from "./Types";
 
 export class Const {

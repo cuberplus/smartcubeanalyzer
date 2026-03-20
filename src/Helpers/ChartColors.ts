@@ -2,7 +2,7 @@
  * Centralized, theme-aware colors for Chart.js so no chart uses the default palette.
  * Ensures readable colors in both light and dark mode.
  */
-import { ChartData } from 'chart.js/auto';
+import type { ChartData } from 'chart.js/auto';
 
 export type ChartColorPair = { borderColor: string; backgroundColor: string };
 

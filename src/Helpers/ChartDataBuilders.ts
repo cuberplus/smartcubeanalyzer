@@ -2,7 +2,7 @@
  * Pure functions that build chart datasets from solves and options.
  * Used by ChartPanel and can be wrapped in useMemo when using function components.
  */
-import { ChartData } from 'chart.js/auto';
+import type { ChartData } from 'chart.js/auto';
 import { Const } from './Constants';
 import {
     calculateAverage,

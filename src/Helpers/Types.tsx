@@ -1,4 +1,6 @@
-import { Option } from "react-multi-select-component"
+// Local Option type, matching react-multi-select-component's interface, but without
+// pulling in React so this file can be safely imported by Web Workers.
+export interface Option { value: any; label: string; key?: string; disabled?: boolean; }
 
 export enum MethodName {
     CFOP = 'CFOP',
@@ -197,7 +199,30 @@ export interface ChartPanelProps {
 }
 
 export interface ChartPanelState {
+    chartData: Record<string, unknown> | null;
+    isComputing: boolean;
+}
 
+export interface StreakRow {
+    time: string;
+    currentstreak: string;
+    longeststreak: string;
+}
+
+export interface RecordRow {
+    recordType: string;
+    time: string;
+}
+
+export interface AlgoPracticeRow {
+    case: string;
+    total: number;
+    failed: number;
+    failureRate: string;
+    avgMoves: string;
+    expectedMoves: number;
+    avgWasted: string;
+    avgTime: string;
 }
 
 export interface StepDrilldownProps {
