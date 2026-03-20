@@ -89,6 +89,7 @@ export function CalculateAllSessionOptions(solves: Solve[]): Option[] {
         sessions.add(x.session);
     });
     let uniqueSessions = Array.from(sessions.values());
+    uniqueSessions.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     uniqueSessions.forEach(x => {
         options.push({ label: x, value: x })
 

@@ -73,15 +73,17 @@ test('CalculateWindowSize returns the correct window size', () => {
     expect(CalculateWindowSize(500000)).toBe(1000);
 });
 
-test('CalculateAllSessionOptions returns unique session options', () => {
+test('CalculateAllSessionOptions returns unique session options sorted alphabetically', () => {
     const solves: Solve[] = [
-        { ...GetEmptySolve(), session: "Session1" },
-        { ...GetEmptySolve(), session: "Session2" },
-        { ...GetEmptySolve(), session: "Session1" }
+        { ...GetEmptySolve(), session: "Zed" },
+        { ...GetEmptySolve(), session: "Alpha" },
+        { ...GetEmptySolve(), session: "Beta" },
+        { ...GetEmptySolve(), session: "Zed" }
     ];
     expect(CalculateAllSessionOptions(solves)).toEqual([
-        { label: "Session1", value: "Session1" },
-        { label: "Session2", value: "Session2" }
+        { label: "Alpha", value: "Alpha" },
+        { label: "Beta", value: "Beta" },
+        { label: "Zed", value: "Zed" }
     ]);
 });
 
