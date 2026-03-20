@@ -31,7 +31,7 @@ export function GetEmptySolve() {
         scramble: "",
         tps: 0,
         recognitionTime: 0,
-        inspectionTime: 0,
+        inspectionTime: null,
         executionTime: 0,
         preAufTime: 0,
         postAufTime: 0,

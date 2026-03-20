@@ -13,6 +13,7 @@ import {
     buildOllCategoryChart,
     buildPllCategoryChart,
     buildInspectionData,
+    shouldShowInspectionCharts,
     buildTypicalCompare,
 } from '../Helpers/ChartDataBuilders';
 import { CrossColor, MethodName, Solve, StepName } from '../Helpers/Types';
@@ -139,7 +140,7 @@ describe('buildRunningTpsData', () => {
 
 describe('buildRunningInspectionData', () => {
     test('returns correct average for uniform inspection times', () => {
-        const solves = makeSolves(5, { inspectionTime: 10 });
+        const solves = makeSolves(5, { inspectionTime: 10 }) as Array<Solve & { inspectionTime: number }>;
         const result = buildRunningInspectionData(solves, 5, 500);
         expect(result.datasets[0].data[0]).toBeCloseTo(10);
     });
@@ -366,14 +367,38 @@ describe('buildPllCategoryChart', () => {
 
 describe('buildInspectionData', () => {
     test('returns 7 chunks (Const.InspectionGraphChunks)', () => {
-        const result = buildInspectionData(makeSolves(14), 100);
+        const result = buildInspectionData(
+            makeSolves(14) as Array<Solve & { inspectionTime: number }>,
+            100
+        );
         expect(result.labels).toHaveLength(7);
         expect(result.datasets[0].data).toHaveLength(7);
     });
 
     test('labels are formatted as ~X.XX inspection averages', () => {
-        const result = buildInspectionData(makeSolves(7, { inspectionTime: 8 }), 100);
+        const result = buildInspectionData(
+            makeSolves(7, { inspectionTime: 8 }) as Array<Solve & { inspectionTime: number }>,
+            100
+        );
         expect((result.labels as string[])[0]).toMatch(/^~/);
+    });
+});
+
+describe('shouldShowInspectionCharts', () => {
+    test('returns false when all solves are Acubemy (even if inspection is missing)', () => {
+        const solves: Solve[] = [
+            { ...makeSolve(), source: 'acubemy', inspectionTime: null },
+            { ...makeSolve({ time: 25 }), source: 'acubemy', inspectionTime: null },
+        ];
+        expect(shouldShowInspectionCharts(solves)).toBe(false);
+    });
+
+    test('returns true when at least one non-Acubemy solve has inspectionTime', () => {
+        const solves: Solve[] = [
+            { ...makeSolve({ time: 20, inspectionTime: 5 }), source: 'cubeast', inspectionTime: 5 },
+            { ...makeSolve({ time: 30, inspectionTime: 0 }), source: 'acubemy', inspectionTime: null },
+        ];
+        expect(shouldShowInspectionCharts(solves)).toBe(true);
     });
 });
 

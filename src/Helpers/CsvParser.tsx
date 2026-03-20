@@ -665,6 +665,13 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             solve.isCorrupt = true;
         }
 
+        // Acubemy exports don't include inspection time. Keep it as `null` unless the column exists.
+        const inspectionTimeRaw = get("inspection_time");
+        const inspectionMs = inspectionTimeRaw ? Number(inspectionTimeRaw) : NaN;
+        solve.inspectionTime = Number.isFinite(inspectionMs) && inspectionMs >= 0
+            ? inspectionMs / 1000
+            : null;
+
         solve.scramble = get("scramble");
 
         solve.session = get("session_name");

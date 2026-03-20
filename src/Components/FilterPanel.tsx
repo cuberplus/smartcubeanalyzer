@@ -88,8 +88,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         if (solve.time < filters.fastestTime || solve.time > filters.slowestTime) {
             return false;
         }
-        if (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection) {
-            return false;
+        // Acubemy exports may not report inspection time. Those solves should not be excluded by inspection filters.
+        if (solve.inspectionTime != null) {
+            if (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection) {
+                return false;
+            }
         }
         // Only filter by session when the solve has a session set; avoids excluding rows where session wasn't parsed (e.g. CSV column alignment).
         if (filters.sessions.length > 0 && (solve.session !== '' && solve.session != null) && filters.sessions.indexOf(solve.session) < 0) {
