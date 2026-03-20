@@ -194,7 +194,7 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                             <Col lg={6} md={12}>
                                 <Card className="info-card h-100">
                                     <Card.Body>
-                                        <Card.Title>Step Presets</Card.Title>
+                                        <Card.Title>Preset Step Filters</Card.Title>
                                         <div className="d-flex flex-wrap gap-2">
                                             {CFOP_PRESETS.map(preset => (
                                                 <Button
