@@ -1,6 +1,7 @@
 import { Option } from "./Types";
 import { Const } from "./Constants";
 import { CrossColor, MethodName, Solve, Step, StepName } from "./Types";
+import { calculateMovingAverageChopped } from "./MathHelpers";
 
 export function GetEmptyStep() {
     let step: Step = {
@@ -31,7 +32,7 @@ export function GetEmptySolve() {
         scramble: "",
         tps: 0,
         recognitionTime: 0,
-        inspectionTime: 0,
+        inspectionTime: null,
         executionTime: 0,
         preAufTime: 0,
         postAufTime: 0,
@@ -88,9 +89,37 @@ export function CalculateAllSessionOptions(solves: Solve[]): Option[] {
         sessions.add(x.session);
     });
     let uniqueSessions = Array.from(sessions.values());
+    uniqueSessions.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     uniqueSessions.forEach(x => {
         options.push({ label: x, value: x })
 
     })
     return options;
+}
+
+export function CalculateBenchmarkTimes(solves: Solve[]): { goodTime: number; badTime: number } {
+    const validSolves = solves
+        .filter(s => !s.isCorrupt)
+        .slice()
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const times = validSolves.map(s => s.time);
+
+    // Keep existing defaults when we cannot compute anything meaningful.
+    if (times.length === 0) {
+        return { goodTime: 15, badTime: 20 };
+    }
+
+    let goodTime: number;
+    if (times.length >= 100) {
+        const ao100Series = calculateMovingAverageChopped(times, 100, 5);
+        const ao100 = ao100Series.length > 0 ? ao100Series[ao100Series.length - 1] : times[times.length - 1];
+        goodTime = Math.floor(ao100);
+    } else {
+        const sum = times.reduce((acc, curr) => acc + curr, 0);
+        goodTime = Math.floor(sum / times.length);
+    }
+
+    const badTime = Math.ceil(goodTime * 1.25);
+    return { goodTime, badTime };
 }

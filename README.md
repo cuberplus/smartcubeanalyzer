@@ -9,7 +9,7 @@ SmartcubeAnalyzer is a tool designed to analyze and visualize data related to cu
 - **Count of Solves by How Long They Took**: Visualizes the number of solves within specific time ranges.
 - **Average Turns Per Second (TPS)**: Displays the average TPS and TPS during execution.
 - **Average Turns**: Shows the average number of turns per solve.
-- **Solve Efficiency**: Shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL failure rates, and a combined solve efficiency.
+- **Solve Efficiency**: Shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL success rates, and a combined solve efficiency.
 - **Top 100 Fastest Solves**: Lists the top 100 fastest solves given the current filters.
 - **Average Standard Deviation**: Displays the running standard deviation of solve times.
 - **Percentage of Solves by Cross Color**: Shows the percentage of solves starting with each cross color.

@@ -95,7 +95,7 @@ describe('CsvParser', () => {
         expect(solve.turns).toBe(73);
         expect(solve.tps).toBeCloseTo(73 / (27167 / 1000), 3);
         expect(solve.crossColor).toBe('Yellow'); // cross_face U -> Yellow
-        expect(solve.inspectionTime).toBeCloseTo(0, 3);
+        expect(solve.inspectionTime).toBeNull();
         expect(solve.steps[0].name).toBe('Cross');
         expect(solve.steps[1].name).toBe('F2L Slot 1');
         expect(solve.steps[5].name).toBe('OLL');

@@ -24,6 +24,16 @@ import { createChartWorker } from '../Workers/createChartWorker';
 
 ChartJS.register(CategoryScale);
 
+/** Fill the chart card / Ratio box; DataGrid defaults to ~350px without an explicit height chain. */
+const chartDataGridWrapStyle: React.CSSProperties = {
+    height: '100%',
+    width: '100%',
+    minHeight: 0,
+    overflow: 'auto',
+};
+
+const chartDataGridStyle: React.CSSProperties = { height: '100%' };
+
 // ── Static DataGrid column definitions ───────────────────────────────────────
 
 const STREAK_COLS = [
@@ -211,7 +221,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
                 "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."
             ));
             charts.push(buildChartHtml(
-                <div style={{ overflowX: 'auto' }}><DataGrid rows={c.algoPracticeRows as AlgoPracticeRow[]} columns={ALGO_COLS} /></div>,
+                <div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.algoPracticeRows as AlgoPracticeRow[]} columns={ALGO_COLS} /></div>,
                 "Algorithm Practice",
                 "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."
             ));
@@ -224,18 +234,22 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         charts.push(buildChartHtml(<Line data={c.runningTurns as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale, true, false, isDark)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
         charts.push(buildChartHtml(<Line data={c.runningEfficiency as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Solve Efficiency", "This chart shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL success rates, and a combined solve efficiency (move efficiency minus failure rates)."));
         charts.push(buildChartHtml(
-            <div style={{ overflowX: 'auto' }}><DataGrid rows={c.bestSolvesData as FastestSolve[]} columns={BEST_SOLVES_COLS} onCellClick={this.openSolveSource} /></div>,
+            <div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.bestSolvesData as FastestSolve[]} columns={BEST_SOLVES_COLS} onCellClick={this.openSolveSource} /></div>,
             `Top ${Const.FastestSolvesCount} Fastest Solves`,
             `This shows your ${Const.FastestSolvesCount} fastest solves, given the filters`
         ));
         charts.push(buildChartHtml(<Line data={c.runningStdDev as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Standard Deviation", "This chart shows your running average's standard deviation"));
         charts.push(buildChartHtml(<Line data={c.runningColorPercentages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Percentage of Solves by Cross Color", "This chart shows what percentage of solves started with cross on White/Yellow/etc..."));
-        charts.push(buildChartHtml(<Bar data={c.inspection as ChartData<"bar">} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale, true, false, isDark)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
+        if (c.inspection != null) {
+            charts.push(buildChartHtml(<Bar data={c.inspection as ChartData<"bar">} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale, true, false, isDark)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
+        }
         charts.push(buildChartHtml(<Line data={c.stepAverages as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
-        charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
-        charts.push(buildChartHtml(<div style={{ overflowX: 'auto' }}><DataGrid rows={c.streakRows as StreakRow[]} columns={STREAK_COLS} /></div>, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
+        if (c.runningInspection != null) {
+            charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
+        }
+        charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.streakRows as StreakRow[]} columns={STREAK_COLS} /></div>, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
         charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
-        charts.push(buildChartHtml(<div style={{ overflowX: 'auto' }}><DataGrid rows={c.recordRows as RecordRow[]} columns={RECORD_COLS} /></div>, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
+        charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.recordRows as RecordRow[]} columns={RECORD_COLS} /></div>, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
         if (hasOll) {
             charts.push(buildChartHtml(<Line data={c.ollCategory as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));

@@ -114,7 +114,8 @@ export interface Solve {
     crossColor: CrossColor,
     scramble: string,
     tps: number,
-    inspectionTime: number,
+    // `null` means the source/CSV didn't report inspection time (e.g. Acubemy exports).
+    inspectionTime: number | null,
     recognitionTime: number,
     executionTime: number,
     preAufTime: number,
@@ -167,6 +168,7 @@ export interface FilterPanelState {
     chosenSources: Option[],
     tabKey: number,
     autoWindowSize: boolean,
+    autoBenchmarks: boolean,
     windowSize: number,
     pointsPerGraph: number,
     showFilters: boolean,

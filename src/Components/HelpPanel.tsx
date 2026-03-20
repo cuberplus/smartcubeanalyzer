@@ -70,6 +70,13 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                                 <strong>Settings &gt; Export Data</strong> (requires a premium account).
                             </p>
                         </div>
+                        <div className="text-center">
+                            <img
+                                className="img-fluid w-75"
+                                src={require("../Assets/AcubemyCsv.png")}
+                                alt="Acubemy export solves as CSV"
+                            />
+                        </div>
                     </section>
 
                     <section className="mb-4">

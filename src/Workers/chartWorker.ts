@@ -20,6 +20,7 @@ import {
     buildOllCategoryChart,
     buildPllCategoryChart,
     buildInspectionData,
+    shouldShowInspectionCharts,
     buildTypicalCompare,
 } from '../Helpers/ChartDataBuilders';
 import { applyPaletteToChartData, SEGMENT_COLORS } from '../Helpers/ChartColors';
@@ -345,18 +346,27 @@ function computeAllChartData(input: WorkerInput): Record<string, unknown> {
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
+    // Acubemy exports don't include inspection time. When sources are combined, only Cubeast solves
+    // should contribute to inspection charts; when the dataset is Acubemy-only, hide both charts.
+    const inspectionSolves = solves.filter((s): s is Solve & { inspectionTime: number } => s.inspectionTime != null);
+    const showInspectionCharts = shouldShowInspectionCharts(solves) && inspectionSolves.length > 0;
+
     const cache: Record<string, unknown> = {
         runningAverage: buildRunningAverageData(solves, windowSize, pointsPerGraph),
         runningStdDev: buildRunningStdDevData(solves, windowSize, pointsPerGraph),
         runningTps: buildRunningTpsData(solves, windowSize, pointsPerGraph),
-        runningInspection: buildRunningInspectionData(solves, windowSize, pointsPerGraph),
+        runningInspection: showInspectionCharts
+            ? buildRunningInspectionData(inspectionSolves, windowSize, pointsPerGraph)
+            : null,
         runningTurns: buildRunningTurnsData(solves, windowSize, pointsPerGraph),
         runningRecognitionExecution: buildRunningRecognitionExecution(solves, windowSize, pointsPerGraph, use4SegmentTiming),
         runningEfficiency: buildRunningEfficiencyData(solves, steps, methodName, windowSize, pointsPerGraph),
         histogram: buildHistogramData(solves, windowSize),
         stepAverages: buildStepAverages(solves, steps, windowSize, pointsPerGraph),
         runningColorPercentages: buildRunningColorPercentages(solves, windowSize, pointsPerGraph, isDark),
-        inspection: buildInspectionData(solves, windowSize),
+        inspection: showInspectionCharts
+            ? buildInspectionData(inspectionSolves, windowSize)
+            : null,
         dailyRecord: buildDailyRecordData(solves),
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(solves),

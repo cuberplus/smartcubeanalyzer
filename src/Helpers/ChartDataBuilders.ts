@@ -54,9 +54,13 @@ export function buildRunningTpsData(solves: Solve[], windowSize: number, pointsP
     ]);
 }
 
-export function buildRunningInspectionData(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildRunningInspectionData(
+    solves: Array<Solve & { inspectionTime: number }>,
+    windowSize: number,
+    pointsPerGraph: number
+): ChartData<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
-        { extract: x => x.inspectionTime, calcFn: calculateMovingAverage, label: `Average Inspection Of ${windowSize}` },
+        { extract: x => x.inspectionTime!, calcFn: calculateMovingAverage, label: `Average Inspection Of ${windowSize}` },
     ]);
 }
 
@@ -302,7 +306,10 @@ export function buildPllCategoryChart(solves: Solve[], windowSize: number, point
     ]);
 }
 
-export function buildInspectionData(solves: Solve[], windowSize: number): ChartData<'bar'> {
+export function buildInspectionData(
+    solves: Array<Solve & { inspectionTime: number }>,
+    windowSize: number
+): ChartData<'bar'> {
     const recentSolves = solves.slice(-windowSize).sort((a, b) => a.inspectionTime - b.inspectionTime);
     const chunkedArr = splitIntoChunks(recentSolves, Const.InspectionGraphChunks);
     const labels: string[] = [];
@@ -320,6 +327,12 @@ export function buildInspectionData(solves: Solve[], windowSize: number): ChartD
             },
         ],
     };
+}
+
+export function shouldShowInspectionCharts(solves: Solve[]): boolean {
+    if (solves.length === 0) return false;
+    if (solves.every((s) => s.source === 'acubemy')) return false;
+    return solves.some((s) => s.inspectionTime != null);
 }
 
 export function buildTypicalCompare(solves: Solve[], windowSize: number): ChartData<'bar'> {
