@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
-import { parseCsv, computeStepSegments, aufMovesForFace } from '../Helpers/CsvParser';
+import { parseCsv, computeStepSegments, aufMovesForFace, effectiveCrossExecutionSec } from '../Helpers/CsvParser';
 import { MethodName, Solve, StepName } from '../Helpers/Types';
 
 const cubeastSample = `id,date,dnf,time,solving_method,device_name,device_model,device_color_scheme,user,one_turn_away_two_second_penalty,inspection_two_second_penalty,inspection_time,timer_time,missing_turn,solution,timer,description,session_name,session_ruleset,scramble,scramble_provider,ruleset,share_views,share_likes,share_comments,analysis_version,solution_rotation,pickup_time,putdown_time,solving_time,slice_turns,face_turns,quarter_turns,turns_per_second,total_recognition_time,total_execution_time,turns_after_solution,steps_skipped,step_0_name,step_0_moves,step_0_recorded_moves,step_0_skipped,step_0_has_turns,step_0_time,step_0_recognition_time,step_0_execution_time,step_0_cumulative_time,step_0_slice_turns,step_0_face_turns,step_0_quarter_turns,step_0_turns_per_second,step_1_name,step_1_moves,step_1_recorded_moves,step_1_skipped,step_1_has_turns,step_1_time,step_1_recognition_time,step_1_execution_time,step_1_cumulative_time,step_1_slice_turns,step_1_face_turns,step_1_quarter_turns,step_1_turns_per_second,step_2_name,step_2_moves,step_2_recorded_moves,step_2_skipped,step_2_has_turns,step_2_time,step_2_recognition_time,step_2_execution_time,step_2_cumulative_time,step_2_slice_turns,step_2_face_turns,step_2_quarter_turns,step_2_turns_per_second,step_3_name,step_3_moves,step_3_recorded_moves,step_3_skipped,step_3_has_turns,step_3_time,step_3_recognition_time,step_3_execution_time,step_3_cumulative_time,step_3_slice_turns,step_3_face_turns,step_3_quarter_turns,step_3_turns_per_second,step_4_name,step_4_moves,step_4_recorded_moves,step_4_skipped,step_4_has_turns,step_4_time,step_4_recognition_time,step_4_execution_time,step_4_cumulative_time,step_4_slice_turns,step_4_face_turns,step_4_quarter_turns,step_4_turns_per_second,step_5_name,step_5_moves,step_5_recorded_moves,step_5_skipped,step_5_has_turns,step_5_time,step_5_recognition_time,step_5_execution_time,step_5_cumulative_time,step_5_slice_turns,step_5_face_turns,step_5_quarter_turns,step_5_turns_per_second,step_6_name,step_6_moves,step_6_recorded_moves,step_6_skipped,step_6_has_turns,step_6_time,step_6_recognition_time,step_6_execution_time,step_6_cumulative_time,step_6_slice_turns,step_6_face_turns,step_6_quarter_turns,step_6_turns_per_second,step_7_name,step_7_moves,step_7_recorded_moves,step_7_skipped,step_7_has_turns,step_7_time,step_7_recognition_time,step_7_execution_time,step_7_cumulative_time,step_7_slice_turns,step_7_face_turns,step_7_quarter_turns,step_7_turns_per_second,step_8_name,step_8_moves,step_8_recorded_moves,step_8_skipped,step_8_has_turns,step_8_time,step_8_recognition_time,step_8_execution_time,step_8_cumulative_time,step_8_slice_turns,step_8_face_turns,step_8_quarter_turns,step_8_turns_per_second,step_0_case,step_1_case,step_2_case,step_3_case,step_4_case,step_5_case,step_6_case,step_7_case,step_8_case
@@ -220,6 +220,59 @@ describe('CsvParser', () => {
         expect(cross.preAufTime).toBeCloseTo(0, 3);
         expect(cross.postAufTime).toBeCloseTo(0, 3);
         expect(cross.executionTime).toBeCloseTo(3.226, 3);
+    });
+
+    test('Cubeast Cross single recorded move uses CSV execution when timestamp span is zero', () => {
+        const [hdr, row] = cubeastSample.trim().split('\n');
+        const oneMoveCrossRow = row.replace(
+            `Cross,U' B R B L F D' L D',U'[0] B[172] R[529] B[953] L[1730] F[2214] D'[2461] L[2795] D'[3226],false,true,3226,0,3226,3226,9,9,9,2.79`,
+            `Cross,R,R[5000],false,true,2000,0,2000,2000,1,1,1,0.5`
+        );
+        const csv = `${hdr}\n${oneMoveCrossRow}`;
+        const solves: Solve[] = parseCsv(csv, ',');
+        const cross = solves[0].steps[0];
+        expect(cross.name).toBe('Cross');
+        expect(cross.recognitionTime).toBeCloseTo(0, 3);
+        expect(cross.executionTime).toBeCloseTo(2.0, 3);
+        expect(cross.time).toBeCloseTo(2.0, 3);
+    });
+
+    test('Cubeast Cross single move uses step_0_cumulative_time when execution_time is zero', () => {
+        const [hdr, row] = cubeastSample.trim().split('\n');
+        const oneMoveCrossRow = row.replace(
+            `Cross,U' B R B L F D' L D',U'[0] B[172] R[529] B[953] L[1730] F[2214] D'[2461] L[2795] D'[3226],false,true,3226,0,3226,3226,9,9,9,2.79`,
+            `Cross,R,R[5000],false,true,2500,0,0,2500,1,1,1,0.4`
+        );
+        const csv = `${hdr}\n${oneMoveCrossRow}`;
+        const solves: Solve[] = parseCsv(csv, ',');
+        const cross = solves[0].steps[0];
+        expect(cross.name).toBe('Cross');
+        expect(cross.recognitionTime).toBeCloseTo(0, 3);
+        expect(cross.executionTime).toBeCloseTo(2.5, 3);
+        expect(cross.time).toBeCloseTo(2.5, 3);
+    });
+
+    test('Acubemy Cross single move uses cross_execution_time when timestamp span is zero', () => {
+        const csv = `solve_id,date,total_time,scramble,solution,turns,tps,move_times,analysis_type,cross_face,cross_moves,cross_time,cross_execution_time,f2l_pair1_moves,f2l_pair1_time,f2l_pair1_recognition_time,f2l_pair1_execution_time,f2l_pair2_moves,f2l_pair2_time,f2l_pair2_recognition_time,f2l_pair2_execution_time,f2l_pair3_moves,f2l_pair3_time,f2l_pair3_recognition_time,f2l_pair3_execution_time,f2l_pair4_moves,f2l_pair4_time,f2l_pair4_recognition_time,f2l_pair4_execution_time,oll_case_id,oll_moves,oll_time,oll_recognition_time,oll_execution_time,pll_case_name,pll_moves,pll_time,pll_recognition_time,pll_execution_time
+1,2026-01-08T10:32:50.222Z,10000,,R,1,1,5000,CFOP,U,R,3500,3500,,,,,,,,,,,,,,,,,,,,,0,,,0,0,,,0,0`;
+        const solves: Solve[] = parseCsv(csv, ',');
+        const cross = solves[0].steps[0];
+        expect(cross.name).toBe('Cross');
+        expect(cross.recognitionTime).toBeCloseTo(0, 5);
+        expect(cross.executionTime).toBeCloseTo(3.5, 5);
+        expect(cross.time).toBeCloseTo(3.5, 5);
+    });
+
+    test('effectiveCrossExecutionSec uses CSV fallback only when degenerate and segment is zero', () => {
+        const oneMove = [{ move: 'R', timestamp: 5000 }];
+        expect(effectiveCrossExecutionSec(oneMove, 0, 2.5)).toBeCloseTo(2.5, 5);
+        expect(effectiveCrossExecutionSec(oneMove, 0.1, 2.5)).toBeCloseTo(0.1, 5);
+        const twoMovesSameTs = [
+            { move: 'R', timestamp: 100 },
+            { move: 'U', timestamp: 100 },
+        ];
+        expect(effectiveCrossExecutionSec(twoMovesSameTs, 0, 1.2)).toBeCloseTo(1.2, 5);
+        expect(effectiveCrossExecutionSec(oneMove, 0, 0)).toBe(0);
     });
 
     test('Cubeast 4-segment timing: F2L has preAuf, no postAuf', () => {

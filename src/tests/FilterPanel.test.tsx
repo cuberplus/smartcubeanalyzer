@@ -40,6 +40,27 @@ function makeSolve(stepTimes: number[]): Solve {
     };
 }
 
+describe('FilterPanel.markAllLuckiness', () => {
+    const stepTimes = [2, 3, 4, 3, 4, 2, 3];
+
+    test('marks fullstep when every method step has execution time greater than zero', () => {
+        const solves = [makeSolve(stepTimes)];
+        const marked = FilterPanel.markAllLuckiness(solves);
+        expect(marked[0].isFullStep).toBe(true);
+    });
+
+    test('marks not fullstep when a step has zero execution but positive total time', () => {
+        const solves = [makeSolve(stepTimes)];
+        const oll = solves[0].steps[5];
+        oll.executionTime = 0;
+        oll.recognitionTime = stepTimes[5];
+        oll.time = stepTimes[5];
+
+        const marked = FilterPanel.markAllLuckiness(solves);
+        expect(marked[0].isFullStep).toBe(false);
+    });
+});
+
 describe('FilterPanel.compressSolves', () => {
     const stepTimes = [2, 3, 4, 3, 4, 2, 3]; // cross, f2l1-4, oll, pll
     const fullTime = stepTimes.reduce((a, b) => a + b, 0); // 21
