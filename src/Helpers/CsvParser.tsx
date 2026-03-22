@@ -189,6 +189,26 @@ export function computeStepSegments(
     return { recognition, preAuf, coreExecution, postAuf };
 }
 
+/**
+ * Cross span from timestamps is 0 with a single move or identical first/last timestamps.
+ * Use CSV step execution (seconds) when degenerate and the export reports a positive duration.
+ */
+export function effectiveCrossExecutionSec(
+    moveTimings: MoveTiming[],
+    segmentExecutionSec: number,
+    csvExecutionFallbackSec: number
+): number {
+    if (!moveTimings.length) return segmentExecutionSec;
+    const firstTs = moveTimings[0].timestamp;
+    const lastTs = moveTimings[moveTimings.length - 1].timestamp;
+    const degenerate =
+        moveTimings.length === 1 || firstTs === lastTs;
+    if (degenerate && csvExecutionFallbackSec > 0 && segmentExecutionSec === 0) {
+        return csvExecutionFallbackSec;
+    }
+    return segmentExecutionSec;
+}
+
 const COMMA_PLACEHOLDER = '\x01';
 
 // --- Shared helpers for Acubemy move parsing  ---
@@ -263,6 +283,12 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "turns_per_second": (step, value) => { step.tps = Number(value); },
         "recognition_time": (step, value) => { step.recognitionTime = Number(value) / 1000; },
         "execution_time": (step, value) => { step.executionTime = Number(value) / 1000; },
+        "cumulative_time": (step, value) => {
+            const sec = Number(value) / 1000;
+            if (Number.isFinite(sec) && sec >= 0) {
+                (step as any)._csvCumulativeTimeSec = sec;
+            }
+        },
         "recorded_moves": (step, value) => {
             const moveTimings = parseRecordedMoves(value);
             if (moveTimings.length > 0) {
@@ -334,15 +360,35 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
             const step = obj.steps[i];
             const moveTimings = (step as any)._moveTimings as MoveTiming[] | undefined;
             if (moveTimings && moveTimings.length > 0) {
+                const csvCumulativeSec = (step as any)._csvCumulativeTimeSec as number | undefined;
+                const csvCrossExecFallback =
+                    step.name === StepName.Cross
+                        ? step.executionTime > 0
+                            ? step.executionTime
+                            : csvCumulativeSec != null && csvCumulativeSec > 0
+                              ? csvCumulativeSec
+                              : 0
+                        : 0;
                 const seg = computeStepSegments(moveTimings, prevEndTsMs, step.name);
                 step.recognitionTime = seg.recognition;
                 step.preAufTime = seg.preAuf;
                 step.postAufTime = seg.postAuf;
-                const coreExec = seg.coreExecution;
-                step.executionTime = seg.preAuf + coreExec + seg.postAuf;
+                const segmentExec = seg.preAuf + seg.coreExecution + seg.postAuf;
+                step.executionTime =
+                    step.name === StepName.Cross
+                        ? effectiveCrossExecutionSec(
+                              moveTimings,
+                              segmentExec,
+                              csvCrossExecFallback
+                          )
+                        : segmentExec;
                 step.time = step.recognitionTime + step.executionTime;
                 step.moves = moveTimings.map((m) => m.move).join(" ");
                 step.turns = moveTimings.length;
+                if (step.time > 0 && step.turns > 0) {
+                    step.tps = step.turns / step.time;
+                }
+                delete (step as any)._csvCumulativeTimeSec;
                 if (moveTimings.length > 0) {
                     prevEndTsMs = moveTimings[moveTimings.length - 1].timestamp;
                 }
@@ -360,6 +406,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
                 }
                 delete (step as any)._moveTimings;
                 delete (step as any).aufDurationMs;
+                delete (step as any)._csvCumulativeTimeSec;
                 if (prevEndTsMs != null && step.time > 0) {
                     prevEndTsMs += step.time * 1000;
                 }
@@ -538,7 +585,8 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
         stepDefs: AcubemyStepDef[],
         solutionMovesRaw: string | undefined | null,
         moveTimesRaw: string | undefined | null,
-        aufMoves: Set<string> = AUF_MOVES
+        aufMoves: Set<string> = AUF_MOVES,
+        crossCsvExecutionFallbackSec = 0
     ) => {
         const solutionTokens = tokenizeMoves(solutionMovesRaw);
         if (!solutionTokens.length || !moveTimesRaw || !moveTimesRaw.trim()) {
@@ -623,7 +671,15 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
             s.recognitionTime = seg.recognition;
             s.preAufTime = seg.preAuf;
             s.postAufTime = seg.postAuf;
-            s.executionTime = seg.preAuf + seg.coreExecution + seg.postAuf;
+            const segmentExec = seg.preAuf + seg.coreExecution + seg.postAuf;
+            s.executionTime =
+                def.name === StepName.Cross
+                    ? effectiveCrossExecutionSec(
+                          moveTimings,
+                          segmentExec,
+                          crossCsvExecutionFallbackSec
+                      )
+                    : segmentExec;
             s.time = s.recognitionTime + s.executionTime;
 
             if (s.time > 0 && s.turns > 0) {
@@ -729,6 +785,15 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 
         computeAcubemySolveTurnsAndTps(solve, solutionNoRot || solutionMovesRaw);
 
+        const crossExecMs = getNumber("cross_execution_time");
+        const crossTimeMs = getNumber("cross_time");
+        const crossCsvExecutionFallbackSec =
+            crossExecMs > 0
+                ? crossExecMs / 1000
+                : crossTimeMs > 0
+                  ? crossTimeMs / 1000
+                  : 0;
+
         if (solve.method === MethodName.CFOP && solutionNoRot && moveTimesNoRot) {
             const solveAufMoves = getAufMovesForSolve(solve);
             recomputeAcubemyStepTimes(
@@ -736,7 +801,8 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
                 ACUBEMY_STEP_DEFS,
                 solutionNoRot,
                 moveTimesNoRot,
-                solveAufMoves
+                solveAufMoves,
+                crossCsvExecutionFallbackSec
             );
         }
 
