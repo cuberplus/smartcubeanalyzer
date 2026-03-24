@@ -192,7 +192,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             newSolves.push(allSolves[i]);
             let numSteps = Const.MethodSteps[newSolves[i].method].length;
             for (let j = 0; j < numSteps; j++) {
-                if (newSolves[i].steps[j].time === 0) {
+                if (newSolves[i].steps[j].executionTime === 0) {
                     newSolves[i].isFullStep = false;
                     break;
                 }
