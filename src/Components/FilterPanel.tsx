@@ -81,7 +81,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         method: { label: MethodName.CFOP, value: MethodName.CFOP },
         useLogScale: false,
         use4SegmentTiming: true,
-        recordHistoryAllDays: false
+        allDays: false
     }
 
     static passesFilters(solve: Solve, filters: Filters) {
@@ -304,7 +304,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 goodTime: prevState.goodTime,
                 useLogScale: prevState.useLogScale,
                 use4SegmentTiming: prevState.use4SegmentTiming,
-                recordHistoryAllDays: prevState.recordHistoryAllDays
+                allDays: prevState.allDays
             };
         }
 
@@ -337,7 +337,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             goodTime: prevState.goodTime,
             useLogScale: prevState.useLogScale,
             use4SegmentTiming: prevState.use4SegmentTiming,
-            recordHistoryAllDays: prevState.recordHistoryAllDays
+            allDays: prevState.allDays
         }
 
         // Update anything that needs it
@@ -570,8 +570,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         this.setState({ use4SegmentTiming: checked });
     }
 
-    setRecordHistoryAllDays(checked: boolean) {
-        this.setState({ recordHistoryAllDays: checked });
+    setAllDays(checked: boolean) {
+        this.setState({ allDays: checked });
     }
 
     setCleanliness(selectedList: any[]) {
@@ -861,9 +861,9 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
-                        <ReactSwitch id="recordHistoryAllDays" checked={this.state.recordHistoryAllDays} onChange={this.setRecordHistoryAllDays.bind(this)} />,
-                        "Record History: All Days",
-                        "When on, the History of Records chart shows every calendar day from the first to the last solve. When off (default), only days where a new record was set are shown."
+                        <ReactSwitch id="allDays" checked={this.state.allDays} onChange={this.setAllDays.bind(this)} />,
+                        "All Days",
+                        "When on, date-based charts show a continuous timeline spanning all solve dates. Days/weeks/months without solves are shown as gaps or zero bars."
                     )}
 
                     {this.createFilterHtml(
@@ -935,7 +935,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                                 steps={this.state.filters.steps}
                                 useLogScale={this.state.useLogScale}
                                 use4SegmentTiming={this.state.use4SegmentTiming}
-                                recordHistoryAllDays={this.state.recordHistoryAllDays}
+                                allDays={this.state.allDays}
                             />
                         </Col>
                     </Row>

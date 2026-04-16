@@ -178,7 +178,7 @@ export interface FilterPanelState {
     method: Option,
     useLogScale: boolean,
     use4SegmentTiming: boolean,
-    recordHistoryAllDays: boolean
+    allDays: boolean
 }
 
 export interface FileInputProps {
@@ -206,7 +206,7 @@ export interface ChartPanelProps {
     steps: StepName[],
     useLogScale: boolean,
     use4SegmentTiming: boolean,
-    recordHistoryAllDays: boolean
+    allDays: boolean
 }
 
 export interface ChartPanelState {

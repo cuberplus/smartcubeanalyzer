@@ -51,7 +51,7 @@ interface WorkerInput {
     methodName: MethodName;
     use4SegmentTiming: boolean;
     isDark: boolean;
-    recordHistoryAllDays: boolean;
+    allDays: boolean;
 }
 
 // ── Streak helpers ───────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ function buildStepAverages(solves: Solve[], steps: StepName[], windowSize: numbe
     return { labels, datasets };
 }
 
-function buildDailyRecordData(solves: Solve[]) {
+function buildDailyRecordData(solves: Solve[], allDays: boolean) {
     const fastestSolveEachDay: { [key: string]: number } = {};
     for (const solve of solves) {
         const day = solve.date.toLocaleDateString('en-CA');
@@ -207,14 +207,31 @@ function buildDailyRecordData(solves: Solve[]) {
             ? Math.min(fastestSolveEachDay[day], solve.time)
             : solve.time;
     }
-    const labels = Object.keys(fastestSolveEachDay).sort();
+    const sortedKeys = Object.keys(fastestSolveEachDay).sort();
+    const data = sortedKeys.map(d => ({ x: new Date(d + 'T12:00:00'), y: fastestSolveEachDay[d] }));
+
+    let xAxisMin: Date | undefined;
+    let xAxisMax: Date | undefined;
+    if (allDays && solves.length > 0) {
+        let minMs = solves[0].date.valueOf();
+        let maxMs = solves[0].date.valueOf();
+        for (let i = 1; i < solves.length; i++) {
+            const ms = solves[i].date.valueOf();
+            if (ms < minMs) minMs = ms;
+            if (ms > maxMs) maxMs = ms;
+        }
+        xAxisMin = new Date(minMs);
+        xAxisMax = new Date(maxMs);
+    }
+
     return {
-        labels,
-        datasets: [{ label: 'Fastest Solve Each Day', data: labels.map(d => fastestSolveEachDay[d]) }],
+        xAxisMin,
+        xAxisMax,
+        datasets: [{ label: 'Fastest Solve Each Day', data }],
     };
 }
 
-function buildSolvesPerPeriodData(solves: Solve[], period: 'day' | 'week' | 'month') {
+function buildSolvesPerPeriodData(solves: Solve[], period: 'day' | 'week' | 'month', allDays: boolean) {
     const counts: { [key: string]: number } = {};
     for (const solve of solves) {
         let key: string;
@@ -231,6 +248,49 @@ function buildSolvesPerPeriodData(solves: Solve[], period: 'day' | 'week' | 'mon
         }
         counts[key] = (counts[key] ?? 0) + 1;
     }
+
+    if (allDays && solves.length > 0) {
+        const sorted = solves.map(s => s.date.valueOf()).sort((a, b) => a - b);
+        const minDate = new Date(sorted[0]);
+        const maxDate = new Date(sorted[sorted.length - 1]);
+
+        if (period === 'day') {
+            const cur = new Date(minDate);
+            cur.setHours(0, 0, 0, 0);
+            const end = new Date(maxDate);
+            end.setHours(0, 0, 0, 0);
+            while (cur <= end) {
+                const key = cur.toLocaleDateString('en-CA');
+                if (!(key in counts)) counts[key] = 0;
+                cur.setDate(cur.getDate() + 1);
+            }
+        } else if (period === 'week') {
+            // Find Monday of the week containing minDate
+            const cur = new Date(minDate);
+            const day = cur.getDay();
+            cur.setDate(cur.getDate() - day + (day === 0 ? -6 : 1));
+            cur.setHours(0, 0, 0, 0);
+            const end = new Date(maxDate);
+            while (cur <= end) {
+                const key = cur.toLocaleDateString('en-CA');
+                if (!(key in counts)) counts[key] = 0;
+                cur.setDate(cur.getDate() + 7);
+            }
+        } else {
+            // month: iterate YYYY-MM from min to max
+            let year = minDate.getFullYear();
+            let month = minDate.getMonth();
+            const endYear = maxDate.getFullYear();
+            const endMonth = maxDate.getMonth();
+            while (year < endYear || (year === endYear && month <= endMonth)) {
+                const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+                if (!(key in counts)) counts[key] = 0;
+                month++;
+                if (month > 11) { month = 0; year++; }
+            }
+        }
+    }
+
     const labels = Object.keys(counts).sort();
     const label = period === 'day' ? 'Solves per Day' : period === 'week' ? 'Solves per Week' : 'Solves per Month';
     return { labels, datasets: [{ label, data: labels.map(k => counts[k]) }] };
@@ -399,7 +459,7 @@ function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 // ── Main computation ──────────────────────────────────────────────────────────
 
 function computeAllChartData(input: WorkerInput): Record<string, unknown> {
-    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark, recordHistoryAllDays } = input;
+    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark, allDays } = input;
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
@@ -424,14 +484,14 @@ function computeAllChartData(input: WorkerInput): Record<string, unknown> {
         inspection: showInspectionCharts
             ? buildInspectionData(inspectionSolves, windowSize)
             : null,
-        dailyRecord: buildDailyRecordData(solves),
-        solvesPerDay: buildSolvesPerPeriodData(solves, 'day'),
-        solvesPerWeek: buildSolvesPerPeriodData(solves, 'week'),
-        solvesPerMonth: buildSolvesPerPeriodData(solves, 'month'),
+        dailyRecord: buildDailyRecordData(solves, allDays),
+        solvesPerDay: buildSolvesPerPeriodData(solves, 'day', allDays),
+        solvesPerWeek: buildSolvesPerPeriodData(solves, 'week', allDays),
+        solvesPerMonth: buildSolvesPerPeriodData(solves, 'month', allDays),
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(solves),
         goodBad: buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime),
-        recordHistory: buildRecordHistory(solves, recordHistoryAllDays),
+        recordHistory: buildRecordHistory(solves, allDays),
         stepPercentages: buildStepPercentages(solves, steps, windowSize),
         typicalCompare: buildTypicalCompare(solves, windowSize),
         bestSolvesData: computeBestSolvesData(solves),

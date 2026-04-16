@@ -100,7 +100,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _lastMethodNameRef: MethodName = MethodName.CFOP;
     private _lastUse4SegmentTimingRef: boolean = false;
     private _lastIsDarkRef: boolean = false;
-    private _lastRecordHistoryAllDaysRef: boolean = false;
+    private _lastAllDaysRef: boolean = false;
 
     private _isDark(): boolean {
         return (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
@@ -121,7 +121,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             this._lastMethodNameRef !== p.methodName ||
             this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
             this._lastIsDarkRef !== isDark ||
-            this._lastRecordHistoryAllDaysRef !== p.recordHistoryAllDays
+            this._lastAllDaysRef !== p.allDays
         );
     }
 
@@ -138,7 +138,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         this._lastMethodNameRef = p.methodName;
         this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
         this._lastIsDarkRef = isDark;
-        this._lastRecordHistoryAllDaysRef = p.recordHistoryAllDays;
+        this._lastAllDaysRef = p.allDays;
     }
 
     private _sendWork(): void {
@@ -158,7 +158,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             methodName: p.methodName,
             use4SegmentTiming: p.use4SegmentTiming,
             isDark: this._isDark(),
-            recordHistoryAllDays: p.recordHistoryAllDays,
+            allDays: p.allDays,
         });
     }
 
@@ -252,12 +252,22 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             charts.push(buildChartHtml(<Line data={c.runningInspection as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
         }
         charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.streakRows as StreakRow[]} columns={STREAK_COLS} /></div>, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
-        charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        {
+            const dr = c.dailyRecord as { datasets: unknown[]; xAxisMin?: Date; xAxisMax?: Date };
+            const drOptions = createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark);
+            if (p.allDays) {
+                (drOptions as any).scales.x.type = 'time';
+                const DAY_MS = 86_400_000;
+                if (dr.xAxisMin) (drOptions as any).scales.x.min = dr.xAxisMin.valueOf() - 3 * DAY_MS;
+                if (dr.xAxisMax) (drOptions as any).scales.x.max = dr.xAxisMax.valueOf() + 3 * DAY_MS;
+            }
+            charts.push(buildChartHtml(<Line data={dr as unknown as ChartData<"line">} options={drOptions} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        }
         {
             const period = this.state.solvesPerPeriod;
             const periodLabels: Record<typeof period, string> = { day: 'Daily', week: 'Weekly', month: 'Monthly' };
             const periodData = { day: c.solvesPerDay, week: c.solvesPerWeek, month: c.solvesPerMonth }[period];
-            const xAxisLabel = { day: 'Date', week: 'Week Starting', month: 'Month' }[period];
+            const xAxisLabel = { day: 'Day', week: 'Week', month: 'Month' }[period];
             charts.push(
                 <Col key="solvesPerPeriod" className="col-12 col-md-6">
                     <Card className="p-2 p-md-3 shadow-sm">
@@ -304,7 +314,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             {
                 const rh = c.recordHistory as { datasets: unknown[]; xAxisMin?: Date; xAxisMax?: Date };
                 const rhOptions = createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark);
-                if (p.recordHistoryAllDays) {
+                if (p.allDays) {
                     // 'timeseries' evenly spaces data points so gaps disappear; 'time' renders
                     // a continuous timeline. Also pin min/max so the axis spans all solve dates.
                     (rhOptions as any).scales.x.type = 'time';
