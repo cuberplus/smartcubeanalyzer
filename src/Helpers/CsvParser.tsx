@@ -260,7 +260,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "date": (obj, value) => { obj.date = moment.utc(value, 'YYYY-MM-DD hh:mm:ss').toDate(); },
         "solution_rotation": (obj, value) => {
             obj.crossColor = Const.crossMappings.get(value) ?? CrossColor.Unknown;
-            if (obj.crossColor == CrossColor.Unknown) {
+            if (obj.crossColor === CrossColor.Unknown) {
                 //console.log("Unknown solution rotation: ", value);
                 //obj.isCorrupt = true;
             };
