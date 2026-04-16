@@ -177,7 +177,8 @@ export interface FilterPanelState {
     goodTime: number,
     method: Option,
     useLogScale: boolean,
-    use4SegmentTiming: boolean
+    use4SegmentTiming: boolean,
+    recordHistoryAllDays: boolean
 }
 
 export interface FileInputProps {
@@ -204,12 +205,14 @@ export interface ChartPanelProps {
     methodName: MethodName,
     steps: StepName[],
     useLogScale: boolean,
-    use4SegmentTiming: boolean
+    use4SegmentTiming: boolean,
+    recordHistoryAllDays: boolean
 }
 
 export interface ChartPanelState {
     chartData: Record<string, unknown> | null;
     isComputing: boolean;
+    solvesPerPeriod: 'day' | 'week' | 'month';
 }
 
 export interface StreakRow {

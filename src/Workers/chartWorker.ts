@@ -51,6 +51,7 @@ interface WorkerInput {
     methodName: MethodName;
     use4SegmentTiming: boolean;
     isDark: boolean;
+    recordHistoryAllDays: boolean;
 }
 
 // ── Streak helpers ───────────────────────────────────────────────────────────
@@ -111,40 +112,74 @@ function buildRecordRows(solves: Solve[]): RecordRow[] {
     const ao5 = Math.min.apply(null, calculateMovingAverage(times, 5));
     const ao12 = Math.min.apply(null, calculateMovingAverageChopped(times, 12, 1));
     const ao100 = Math.min.apply(null, calculateMovingAverageChopped(times, 100, 5));
-    //const ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
+    const ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
     return [
         { recordType: 'Single', time: single.toFixed(3) },
         { recordType: 'Ao5', time: ao5.toFixed(3) },
         { recordType: 'Ao12', time: ao12.toFixed(3) },
         { recordType: 'Ao100', time: ao100.toFixed(3) },
-        //{ recordType: 'Ao1000', time: ao1000.toFixed(3) },
+        { recordType: 'Ao1000', time: ao1000.toFixed(3) },
     ];
 }
 
-function buildRecordDataset(dates: Date[], times: number[]) {
-    const records = [{ x: dates[0], y: times[0] }];
-    for (let i = 1; i < times.length; i++) {
-        if (times[i] < records[records.length - 1].y) {
-            records.push({ x: dates[i], y: times[i] });
+function buildRecordDatasetDaily(dates: Date[], times: number[]) {
+    if (dates.length === 0) return [];
+
+    // Step 1: group by day, keep the minimum value per day
+    const dayMap: { [key: string]: { date: Date; value: number } } = {};
+    for (let i = 0; i < dates.length; i++) {
+        const day = dates[i].toLocaleDateString('en-CA');
+        if (!dayMap[day] || times[i] < dayMap[day].value) {
+            dayMap[day] = { date: dates[i], value: times[i] };
         }
     }
-    return records;
+    const sortedKeys = Object.keys(dayMap).sort();
+    const dayData = sortedKeys.map(k => dayMap[k]);
+
+    // Step 2: build the record history (only keep days that set a new PB)
+    const records: { date: Date; value: number }[] = [dayData[0]];
+    for (let i = 1; i < dayData.length; i++) {
+        if (dayData[i].value < records[records.length - 1].value) {
+            records.push(dayData[i]);
+        }
+    }
+
+    return records.map(r => ({ x: r.date, y: r.value }));
 }
 
-function buildRecordHistory(solves: Solve[]) {
+function buildRecordHistory(solves: Solve[], allDays: boolean) {
     const dates = solves.map(x => x.date);
     const times = solves.map(x => x.time);
     const ao5 = calculateMovingAverage(times, 5);
     const ao12 = calculateMovingAverageChopped(times, 12, 1);
     const ao100 = calculateMovingAverageChopped(times, 100, 5);
-    //const ao1000 = calculateMovingAverageChopped(times, 1000, 50);
+    const ao1000 = calculateMovingAverageChopped(times, 1000, 50);
+
+    // When allDays is on, expose the full solve date range so ChartPanel can set
+    // min/max on the 'time' scale — no null anchors needed, avoids rendering issues.
+    let xAxisMin: Date | undefined;
+    let xAxisMax: Date | undefined;
+    if (allDays && dates.length > 0) {
+        let minMs = dates[0].valueOf();
+        let maxMs = dates[0].valueOf();
+        for (let i = 1; i < dates.length; i++) {
+            const ms = dates[i].valueOf();
+            if (ms < minMs) minMs = ms;
+            if (ms > maxMs) maxMs = ms;
+        }
+        xAxisMin = new Date(minMs);
+        xAxisMax = new Date(maxMs);
+    }
+
     return {
+        xAxisMin,
+        xAxisMax,
         datasets: [
-            { label: 'Record Single', data: buildRecordDataset(dates, times) },
-            { label: 'Record Ao5', data: buildRecordDataset(dates.slice(4), ao5) },
-            { label: 'Record Ao12', data: buildRecordDataset(dates.slice(11), ao12) },
-            { label: 'Record Ao100', data: buildRecordDataset(dates.slice(99), ao100) },
-            //{ label: 'Record Ao1000', data: buildRecordDataset(dates.slice(999), ao1000) },
+            { label: 'Record Single', data: buildRecordDatasetDaily(dates, times) },
+            { label: 'Record Ao5', data: buildRecordDatasetDaily(dates.slice(4), ao5) },
+            { label: 'Record Ao12', data: buildRecordDatasetDaily(dates.slice(11), ao12) },
+            { label: 'Record Ao100', data: buildRecordDatasetDaily(dates.slice(99), ao100) },
+            { label: 'Record Ao1000', data: buildRecordDatasetDaily(dates.slice(999), ao1000) },
         ],
     };
 }
@@ -177,6 +212,28 @@ function buildDailyRecordData(solves: Solve[]) {
         labels,
         datasets: [{ label: 'Fastest Solve Each Day', data: labels.map(d => fastestSolveEachDay[d]) }],
     };
+}
+
+function buildSolvesPerPeriodData(solves: Solve[], period: 'day' | 'week' | 'month') {
+    const counts: { [key: string]: number } = {};
+    for (const solve of solves) {
+        let key: string;
+        if (period === 'day') {
+            key = solve.date.toLocaleDateString('en-CA');
+        } else if (period === 'week') {
+            const d = new Date(solve.date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            d.setDate(diff);
+            key = d.toLocaleDateString('en-CA');
+        } else {
+            key = solve.date.toISOString().slice(0, 7);
+        }
+        counts[key] = (counts[key] ?? 0) + 1;
+    }
+    const labels = Object.keys(counts).sort();
+    const label = period === 'day' ? 'Solves per Day' : period === 'week' ? 'Solves per Week' : 'Solves per Month';
+    return { labels, datasets: [{ label, data: labels.map(k => counts[k]) }] };
 }
 
 // ── Efficiency ───────────────────────────────────────────────────────────────
@@ -342,7 +399,7 @@ function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 // ── Main computation ──────────────────────────────────────────────────────────
 
 function computeAllChartData(input: WorkerInput): Record<string, unknown> {
-    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
+    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark, recordHistoryAllDays } = input;
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
@@ -368,10 +425,13 @@ function computeAllChartData(input: WorkerInput): Record<string, unknown> {
             ? buildInspectionData(inspectionSolves, windowSize)
             : null,
         dailyRecord: buildDailyRecordData(solves),
+        solvesPerDay: buildSolvesPerPeriodData(solves, 'day'),
+        solvesPerWeek: buildSolvesPerPeriodData(solves, 'week'),
+        solvesPerMonth: buildSolvesPerPeriodData(solves, 'month'),
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(solves),
         goodBad: buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime),
-        recordHistory: buildRecordHistory(solves),
+        recordHistory: buildRecordHistory(solves, recordHistoryAllDays),
         stepPercentages: buildStepPercentages(solves, steps, windowSize),
         typicalCompare: buildTypicalCompare(solves, windowSize),
         bestSolvesData: computeBestSolvesData(solves),
@@ -388,7 +448,7 @@ function computeAllChartData(input: WorkerInput): Record<string, unknown> {
     const chartDataKeys = [
         'runningAverage', 'runningStdDev', 'runningTps', 'runningInspection', 'runningTurns',
         'runningRecognitionExecution', 'runningEfficiency', 'histogram', 'stepAverages',
-        'runningColorPercentages', 'inspection', 'dailyRecord', 'goodBad', 'recordHistory',
+        'runningColorPercentages', 'inspection', 'dailyRecord', 'solvesPerDay', 'solvesPerWeek', 'solvesPerMonth', 'goodBad', 'recordHistory',
         'stepPercentages', 'typicalCompare', 'ollCategory', 'pllCategory', 'caseData',
     ] as const;
     for (const key of chartDataKeys) {

@@ -1,5 +1,5 @@
 import { GetEmptyStep, GetEmptySolve, CalculateBenchmarkTimes, CalculateWindowSize, CalculateMostUsedMethod, CalculateAllSessionOptions  } from '../Helpers/CubeHelpers';
-import { describe, expect, test } from '@jest/globals';
+import { expect, test } from '@jest/globals';
 import { MethodName, Solve } from '../Helpers/Types';
 
 test('GetEmptyStep returns an empty step', () => {

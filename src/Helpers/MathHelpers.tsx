@@ -1,7 +1,5 @@
 import { Deque } from "@datastructures-js/deque";
 import { Const } from "./Constants";
-import { Records } from "./Types";
-var Set = require("sorted-set");
 
 export function sumArray(data: number[]): number {
     return data.reduce((acc, curr) => acc + curr, 0);

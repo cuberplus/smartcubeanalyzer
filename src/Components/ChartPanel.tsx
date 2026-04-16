@@ -13,7 +13,7 @@ import {
 } from "../Helpers/Types";
 import { Chart as ChartJS, ChartData, CategoryScale } from 'chart.js/auto';
 import { createOptions, buildChartHtml } from "../Helpers/ChartHelpers";
-import { Row, Spinner, Tooltip } from "react-bootstrap";
+import { Row, Col, Card, ButtonGroup, Button, OverlayTrigger, Ratio, Spinner, Tooltip } from "react-bootstrap";
 import { ThemeContext } from "../contexts/ThemeContext";
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { Const } from "../Helpers/Constants";
@@ -70,7 +70,7 @@ const BEST_SOLVES_COLS = [
 
 export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState & { _propsKey?: string }> {
     static contextType = ThemeContext;
-    state: ChartPanelState & { _propsKey?: string } = { chartData: null, isComputing: false };
+    state: ChartPanelState & { _propsKey?: string } = { chartData: null, isComputing: false, solvesPerPeriod: 'day' };
 
     static getDerivedStateFromProps(
         nextProps: ChartPanelProps,
@@ -100,6 +100,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _lastMethodNameRef: MethodName = MethodName.CFOP;
     private _lastUse4SegmentTimingRef: boolean = false;
     private _lastIsDarkRef: boolean = false;
+    private _lastRecordHistoryAllDaysRef: boolean = false;
 
     private _isDark(): boolean {
         return (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
@@ -119,7 +120,8 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             this._lastBadTimeRef !== p.badTime ||
             this._lastMethodNameRef !== p.methodName ||
             this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
-            this._lastIsDarkRef !== isDark
+            this._lastIsDarkRef !== isDark ||
+            this._lastRecordHistoryAllDaysRef !== p.recordHistoryAllDays
         );
     }
 
@@ -136,6 +138,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         this._lastMethodNameRef = p.methodName;
         this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
         this._lastIsDarkRef = isDark;
+        this._lastRecordHistoryAllDaysRef = p.recordHistoryAllDays;
     }
 
     private _sendWork(): void {
@@ -155,6 +158,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             methodName: p.methodName,
             use4SegmentTiming: p.use4SegmentTiming,
             isDark: this._isDark(),
+            recordHistoryAllDays: p.recordHistoryAllDays,
         });
     }
 
@@ -249,6 +253,34 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         }
         charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.streakRows as StreakRow[]} columns={STREAK_COLS} /></div>, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
         charts.push(buildChartHtml(<Line data={c.dailyRecord as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
+        {
+            const period = this.state.solvesPerPeriod;
+            const periodLabels: Record<typeof period, string> = { day: 'Daily', week: 'Weekly', month: 'Monthly' };
+            const periodData = { day: c.solvesPerDay, week: c.solvesPerWeek, month: c.solvesPerMonth }[period];
+            const xAxisLabel = { day: 'Date', week: 'Week Starting', month: 'Month' }[period];
+            charts.push(
+                <Col key="solvesPerPeriod" className="col-12 col-md-6">
+                    <Card className="p-2 p-md-3 shadow-sm">
+                        <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-solves-period">Number of solves completed per day, week, or month</Tooltip>}>
+                            <Card.Text className="text-center fw-bold">Solve Count ⓘ</Card.Text>
+                        </OverlayTrigger>
+                        <div className="d-flex justify-content-center mb-2">
+                            <ButtonGroup size="sm">
+                                {(['day', 'week', 'month'] as const).map(p => (
+                                    <Button key={p} variant={period === p ? 'primary' : 'outline-secondary'}
+                                        onClick={() => this.setState({ solvesPerPeriod: p })}>
+                                        {periodLabels[p]}
+                                    </Button>
+                                ))}
+                            </ButtonGroup>
+                        </div>
+                        <Ratio aspectRatio="4x3">
+                            <Bar data={periodData as ChartData<"bar">} options={createOptions(ChartType.Bar, xAxisLabel, "Solves", false, false, false, isDark)} />
+                        </Ratio>
+                    </Card>
+                </Col>
+            );
+        }
         charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.recordRows as RecordRow[]} columns={RECORD_COLS} /></div>, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
         if (hasOll) {
@@ -269,7 +301,19 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
 
         if (p.steps.length === Const.MethodSteps[p.methodName].length) {
             charts.push(buildChartHtml(<Line data={c.goodBad as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
-            charts.push(buildChartHtml(<Line data={c.recordHistory as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."));
+            {
+                const rh = c.recordHistory as { datasets: unknown[]; xAxisMin?: Date; xAxisMax?: Date };
+                const rhOptions = createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark);
+                if (p.recordHistoryAllDays) {
+                    // 'timeseries' evenly spaces data points so gaps disappear; 'time' renders
+                    // a continuous timeline. Also pin min/max so the axis spans all solve dates.
+                    (rhOptions as any).scales.x.type = 'time';
+                    const DAY_MS = 86_400_000;
+                    if (rh.xAxisMin) (rhOptions as any).scales.x.min = rh.xAxisMin.valueOf() - 3 * DAY_MS;
+                    if (rh.xAxisMax) (rhOptions as any).scales.x.max = rh.xAxisMax.valueOf() + 3 * DAY_MS;
+                }
+                charts.push(buildChartHtml(<Line data={rh as unknown as ChartData<"line">} options={rhOptions} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."));
+            }
         }
 
         return (
