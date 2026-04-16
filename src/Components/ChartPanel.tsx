@@ -100,6 +100,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _lastMethodNameRef: MethodName = MethodName.CFOP;
     private _lastUse4SegmentTimingRef: boolean = false;
     private _lastIsDarkRef: boolean = false;
+    private _lastRecordHistoryAllDaysRef: boolean = false;
 
     private _isDark(): boolean {
         return (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
@@ -119,7 +120,8 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             this._lastBadTimeRef !== p.badTime ||
             this._lastMethodNameRef !== p.methodName ||
             this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
-            this._lastIsDarkRef !== isDark
+            this._lastIsDarkRef !== isDark ||
+            this._lastRecordHistoryAllDaysRef !== p.recordHistoryAllDays
         );
     }
 
@@ -136,6 +138,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         this._lastMethodNameRef = p.methodName;
         this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
         this._lastIsDarkRef = isDark;
+        this._lastRecordHistoryAllDaysRef = p.recordHistoryAllDays;
     }
 
     private _sendWork(): void {
@@ -155,6 +158,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             methodName: p.methodName,
             use4SegmentTiming: p.use4SegmentTiming,
             isDark: this._isDark(),
+            recordHistoryAllDays: p.recordHistoryAllDays,
         });
     }
 

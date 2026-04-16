@@ -51,6 +51,7 @@ interface WorkerInput {
     methodName: MethodName;
     use4SegmentTiming: boolean;
     isDark: boolean;
+    recordHistoryAllDays: boolean;
 }
 
 // ── Streak helpers ───────────────────────────────────────────────────────────
@@ -121,17 +122,59 @@ function buildRecordRows(solves: Solve[]): RecordRow[] {
     ];
 }
 
-function buildRecordDataset(dates: Date[], times: number[]) {
-    const records = [{ x: dates[0], y: times[0] }];
-    for (let i = 1; i < times.length; i++) {
-        if (times[i] < records[records.length - 1].y) {
-            records.push({ x: dates[i], y: times[i] });
+function buildRecordDatasetDaily(dates: Date[], times: number[], allDays: boolean) {
+    if (dates.length === 0) return [];
+
+    // Step 1: group by day, keep the minimum value per day
+    const dayMap: { [key: string]: { date: Date; value: number } } = {};
+    for (let i = 0; i < dates.length; i++) {
+        const day = dates[i].toLocaleDateString('en-CA');
+        if (!dayMap[day] || times[i] < dayMap[day].value) {
+            dayMap[day] = { date: dates[i], value: times[i] };
         }
     }
-    return records;
+    const sortedKeys = Object.keys(dayMap).sort();
+    const dayData = sortedKeys.map(k => dayMap[k]);
+
+    // Step 2: build the record history (only keep days that set a new PB)
+    const records: { date: Date; value: number }[] = [dayData[0]];
+    for (let i = 1; i < dayData.length; i++) {
+        if (dayData[i].value < records[records.length - 1].value) {
+            records.push(dayData[i]);
+        }
+    }
+
+    if (!allDays) {
+        return records.map(r => ({ x: r.date, y: r.value }));
+    }
+
+    // Step 3: allDays mode — emit one point per calendar day, carrying the current record forward
+    const result: { x: Date; y: number }[] = [];
+    let recordIdx = 0;
+
+    const cursor = new Date(dayData[0].date);
+    cursor.setHours(0, 0, 0, 0);
+    const endDate = new Date(dayData[dayData.length - 1].date);
+    endDate.setHours(0, 0, 0, 0);
+
+    while (cursor <= endDate) {
+        const cursorDay = cursor.toLocaleDateString('en-CA');
+        // Advance to the latest record that was set on or before today
+        while (recordIdx + 1 < records.length &&
+               records[recordIdx + 1].date.toLocaleDateString('en-CA') <= cursorDay) {
+            recordIdx++;
+        }
+        // Only emit once the first record day has been reached
+        if (records[recordIdx].date.toLocaleDateString('en-CA') <= cursorDay) {
+            result.push({ x: new Date(cursor), y: records[recordIdx].value });
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return result;
 }
 
-function buildRecordHistory(solves: Solve[]) {
+function buildRecordHistory(solves: Solve[], allDays: boolean) {
     const dates = solves.map(x => x.date);
     const times = solves.map(x => x.time);
     const ao5 = calculateMovingAverage(times, 5);
@@ -140,11 +183,11 @@ function buildRecordHistory(solves: Solve[]) {
     //const ao1000 = calculateMovingAverageChopped(times, 1000, 50);
     return {
         datasets: [
-            { label: 'Record Single', data: buildRecordDataset(dates, times) },
-            { label: 'Record Ao5', data: buildRecordDataset(dates.slice(4), ao5) },
-            { label: 'Record Ao12', data: buildRecordDataset(dates.slice(11), ao12) },
-            { label: 'Record Ao100', data: buildRecordDataset(dates.slice(99), ao100) },
-            //{ label: 'Record Ao1000', data: buildRecordDataset(dates.slice(999), ao1000) },
+            { label: 'Record Single', data: buildRecordDatasetDaily(dates, times, allDays) },
+            { label: 'Record Ao5', data: buildRecordDatasetDaily(dates.slice(4), ao5, allDays) },
+            { label: 'Record Ao12', data: buildRecordDatasetDaily(dates.slice(11), ao12, allDays) },
+            { label: 'Record Ao100', data: buildRecordDatasetDaily(dates.slice(99), ao100, allDays) },
+            //{ label: 'Record Ao1000', data: buildRecordDatasetDaily(dates.slice(999), ao1000, allDays) },
         ],
     };
 }
@@ -342,7 +385,7 @@ function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 // ── Main computation ──────────────────────────────────────────────────────────
 
 function computeAllChartData(input: WorkerInput): Record<string, unknown> {
-    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
+    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark, recordHistoryAllDays } = input;
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
@@ -371,7 +414,7 @@ function computeAllChartData(input: WorkerInput): Record<string, unknown> {
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(solves),
         goodBad: buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime),
-        recordHistory: buildRecordHistory(solves),
+        recordHistory: buildRecordHistory(solves, recordHistoryAllDays),
         stepPercentages: buildStepPercentages(solves, steps, windowSize),
         typicalCompare: buildTypicalCompare(solves, windowSize),
         bestSolvesData: computeBestSolvesData(solves),
