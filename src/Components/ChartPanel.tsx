@@ -100,6 +100,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _lastMethodNameRef: MethodName = MethodName.CFOP;
     private _lastUse4SegmentTimingRef: boolean = false;
     private _lastIsDarkRef: boolean = false;
+    private _lastRecordHistoryAllDaysRef: boolean = false;
 
     private _isDark(): boolean {
         return (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
@@ -119,7 +120,8 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             this._lastBadTimeRef !== p.badTime ||
             this._lastMethodNameRef !== p.methodName ||
             this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
-            this._lastIsDarkRef !== isDark
+            this._lastIsDarkRef !== isDark ||
+            this._lastRecordHistoryAllDaysRef !== p.recordHistoryAllDays
         );
     }
 
@@ -136,6 +138,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         this._lastMethodNameRef = p.methodName;
         this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
         this._lastIsDarkRef = isDark;
+        this._lastRecordHistoryAllDaysRef = p.recordHistoryAllDays;
     }
 
     private _sendWork(): void {
@@ -155,6 +158,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             methodName: p.methodName,
             use4SegmentTiming: p.use4SegmentTiming,
             isDark: this._isDark(),
+            recordHistoryAllDays: p.recordHistoryAllDays,
         });
     }
 
@@ -269,7 +273,19 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
 
         if (p.steps.length === Const.MethodSteps[p.methodName].length) {
             charts.push(buildChartHtml(<Line data={c.goodBad as ChartData<"line">} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Percentage of 'Good' and 'Bad' Solves", "This chart shows your running average of solves considered 'good' and 'bad'. This can be configured in the filter panel. Just set the good and bad values to times you feel are correct"));
-            charts.push(buildChartHtml(<Line data={c.recordHistory as ChartData<"line">} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."));
+            {
+                const rh = c.recordHistory as { datasets: unknown[]; xAxisMin?: Date; xAxisMax?: Date };
+                const rhOptions = createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark);
+                if (p.recordHistoryAllDays) {
+                    // 'timeseries' evenly spaces data points so gaps disappear; 'time' renders
+                    // a continuous timeline. Also pin min/max so the axis spans all solve dates.
+                    (rhOptions as any).scales.x.type = 'time';
+                    const DAY_MS = 86_400_000;
+                    if (rh.xAxisMin) (rhOptions as any).scales.x.min = rh.xAxisMin.valueOf() - 3 * DAY_MS;
+                    if (rh.xAxisMax) (rhOptions as any).scales.x.max = rh.xAxisMax.valueOf() + 3 * DAY_MS;
+                }
+                charts.push(buildChartHtml(<Line data={rh as unknown as ChartData<"line">} options={rhOptions} />, "History of Records", "This chart shows your history of PBs. Note that this will only show solves that meet the criteria in your filters, so don't be alarmed if you don't see your PB here. As a note, Ao12 removes the best and worst solves of the 12. Ao100 removes the best and worst 5. Ao1000 removes the best and worst 50."));
+            }
         }
 
         return (
