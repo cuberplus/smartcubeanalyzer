@@ -271,18 +271,21 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             charts.push(
                 <Col key="solvesPerPeriod" className="col-12 col-md-6">
                     <Card className="p-2 p-md-3 shadow-sm">
-                        <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-solves-period">Number of solves completed per day, week, or month</Tooltip>}>
-                            <Card.Text className="text-center fw-bold">Solve Count ⓘ</Card.Text>
-                        </OverlayTrigger>
-                        <div className="d-flex justify-content-center mb-2">
-                            <ButtonGroup size="sm">
-                                {(['day', 'week', 'month'] as const).map(p => (
-                                    <Button key={p} variant={period === p ? 'primary' : 'outline-secondary'}
-                                        onClick={() => this.setState({ solvesPerPeriod: p })}>
-                                        {periodLabels[p]}
-                                    </Button>
-                                ))}
-                            </ButtonGroup>
+                        <div className="d-flex align-items-center mb-1">
+                            <span style={{ flex: 1 }} />
+                            <OverlayTrigger placement="top" overlay={<Tooltip id="tooltip-solves-period">Number of solves completed per day, week, or month</Tooltip>}>
+                                <span className="fw-bold">Solve Count ⓘ</span>
+                            </OverlayTrigger>
+                            <span style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                                <ButtonGroup size="sm">
+                                    {(['day', 'week', 'month'] as const).map(p => (
+                                        <Button key={p} variant={period === p ? 'primary' : 'outline-secondary'}
+                                            onClick={() => this.setState({ solvesPerPeriod: p })}>
+                                            {periodLabels[p]}
+                                        </Button>
+                                    ))}
+                                </ButtonGroup>
+                            </span>
                         </div>
                         <Ratio aspectRatio="4x3">
                             <Bar data={periodData as ChartData<"bar">} options={createOptions(ChartType.Bar, xAxisLabel, "Solves", false, false, false, isDark)} />
