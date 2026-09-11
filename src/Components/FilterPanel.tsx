@@ -80,7 +80,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         goodTime: 15,
         method: { label: MethodName.CFOP, value: MethodName.CFOP },
         useLogScale: false,
-        use4SegmentTiming: true
+        use4SegmentTiming: false
     }
 
     static passesFilters(solve: Solve, filters: Filters) {
@@ -643,7 +643,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             badTime: bench.badTime,
             goodTime: bench.goodTime,
             useLogScale: false,
-            use4SegmentTiming: true,
+            use4SegmentTiming: false,
         });
     }
 
