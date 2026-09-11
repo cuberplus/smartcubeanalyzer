@@ -92,12 +92,12 @@ import {
 // Deliberately aggressive: each budget is the slowest timing observed after the
 // parse/Solve Efficiency work plus ~250ms of slack, so any real slowdown fails
 // immediately. Raise via the env vars below if a slower machine needs room.
-const PAGE_BUDGET_MS = Number(process.env.CHART_PERF_PAGE_BUDGET_MS ?? 4_900);
+const PAGE_BUDGET_MS = Number(process.env.CHART_PERF_PAGE_BUDGET_MS ?? 3_300);
 // The stage-by-stage run measures a little more work than the end-to-end one.
-const STAGE_TOTAL_BUDGET_MS = Number(process.env.CHART_PERF_STAGE_TOTAL_BUDGET_MS ?? 6_000);
-const CHART_BUDGET_MS = Number(process.env.CHART_PERF_CHART_BUDGET_MS ?? 900);
-const PARSE_BUDGET_MS = Number(process.env.CHART_PERF_PARSE_BUDGET_MS ?? 3_200);
-const COMPUTE_BUDGET_MS = Number(process.env.CHART_PERF_COMPUTE_BUDGET_MS ?? 1_600);
+const STAGE_TOTAL_BUDGET_MS = Number(process.env.CHART_PERF_STAGE_TOTAL_BUDGET_MS ?? 3_650);
+const CHART_BUDGET_MS = Number(process.env.CHART_PERF_CHART_BUDGET_MS ?? 500);
+const PARSE_BUDGET_MS = Number(process.env.CHART_PERF_PARSE_BUDGET_MS ?? 1_900);
+const COMPUTE_BUDGET_MS = Number(process.env.CHART_PERF_COMPUTE_BUDGET_MS ?? 1_050);
 
 const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo-solves.csv');
 const WINDOW_SIZE = 1000;

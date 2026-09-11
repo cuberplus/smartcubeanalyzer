@@ -231,6 +231,17 @@ function failedSolveIds(stats: CaseStats): Set<string> {
     return ids;
 }
 
+/** Move strings repeat heavily across solves, so the two turn counts are memoised by step moves. */
+const STEP_TURN_CACHE = new Map<string, { original: number; simplified: number }>();
+function stepTurnCounts(moves: string): { original: number; simplified: number } {
+    let counts = STEP_TURN_CACHE.get(moves);
+    if (!counts) {
+        const { originalTurns, simplifiedTurns } = analyzeStepMoves(moves);
+        STEP_TURN_CACHE.set(moves, counts = { original: originalTurns, simplified: simplifiedTurns });
+    }
+    return counts;
+}
+
 export function computeSolveEfficiency(
     solve: Solve,
     ollCaseStats?: Map<string, CaseStats>,
@@ -239,12 +250,11 @@ export function computeSolveEfficiency(
     let totalOriginal = 0;
     let totalSimplified = 0;
 
-    const aufMoves = getAufMovesForSolve(solve);
     for (const step of solve.steps) {
         if (!step.moves) continue;
-        const analysis = analyzeStepMoves(step.moves, aufMoves);
-        totalOriginal += analysis.originalTurns;
-        totalSimplified += analysis.simplifiedTurns;
+        const counts = stepTurnCounts(step.moves);
+        totalOriginal += counts.original;
+        totalSimplified += counts.simplified;
     }
 
     const moveEfficiency = totalOriginal > 0 ? totalSimplified / totalOriginal : 1;

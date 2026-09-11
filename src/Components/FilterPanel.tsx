@@ -165,9 +165,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         let mistakes: boolean[][] = [];
 
         mistakes.push(this.getMistakeMap(allSolves.map(x => x.time), windowSize));
-        for (const stepName of allSolves[0].steps.map(s => s.name)) {
-            mistakes.push(this.getMistakeMap(allSolves.map(x => x.steps.find(s => s.name === stepName)?.time ?? 0), windowSize));
-        }
+        allSolves[0].steps.forEach(({ name }, i) => {
+            // Steps are usually in the same slot in every solve, so check that slot before scanning.
+            const times = allSolves.map(x => (x.steps[i]?.name === name ? x.steps[i] : x.steps.find(s => s.name === name))?.time ?? 0);
+            mistakes.push(this.getMistakeMap(times, windowSize));
+        });
 
         let newSolves: Solve[] = [];
 

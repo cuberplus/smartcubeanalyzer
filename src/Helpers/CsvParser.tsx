@@ -9,8 +9,6 @@ export const ROTATIONS = new Set([
     "z", "z'", "z2", "z3"
 ]);
 const ACUBEMY_AUF_REMAP_CUTOFF_UTC = new Date('2025-10-21T13:00:00.000Z');
-const MOVE_TIMESTAMP_RE = /^(.+)\[(\d+)\]$/;
-const BRACKET_CONTENT_RE = /\[[^\]]*\]/g;
 type FaceLetter = 'U' | 'D' | 'L' | 'R' | 'F' | 'B';
 
 export function aufMovesForFace(face: FaceLetter): Set<string> {
@@ -72,18 +70,31 @@ export type MoveTiming = { move: string; timestamp: number };
 
 /** Parses Cubeast format "U[100] R[200]" into MoveTiming[], filtering out rotations. */
 export function parseRecordedMoves(raw: string): MoveTiming[] {
-    if (!raw || !raw.trim()) return [];
-    const tokens = raw.trim().split(/\s+/);
     const result: MoveTiming[] = [];
-    for (const token of tokens) {
-        // Hand-rolled equivalent of /^(.+)\[(\d+)\]$/; the regex backtracks badly on long move lists.
-        const open = token.lastIndexOf('[');
-        if (open < 1 || token.charCodeAt(token.length - 1) !== 93) continue;
-        const digits = token.slice(open + 1, -1);
-        if (!digits || !/^\d+$/.test(digits)) continue;
-        const move = token.slice(0, open);
-        if (ROTATIONS.has(move.toLowerCase())) continue;
-        result.push({ move, timestamp: Number(digits) });
+    if (!raw) return result;
+    // One pass over the raw string: tokenizing it and slicing the digits out of every
+    // "[123]" allocated millions of throwaway strings on a full export.
+    const len = raw.length;
+    let i = 0;
+    while (i < len) {
+        while (i < len && raw.charCodeAt(i) <= 32) i++;
+        const start = i;
+        while (i < len && raw.charCodeAt(i) > 32) i++;
+        if (i === start || raw.charCodeAt(i - 1) !== 93) continue;
+        let open = i - 2;
+        let digits = 0;
+        for (let c = raw.charCodeAt(open); open > start && c !== 91; c = raw.charCodeAt(--open)) {
+            if (c < 48 || c > 57) { digits = -1; break; }
+            digits++;
+        }
+        if (digits <= 0 || open <= start || raw.charCodeAt(open) !== 91) continue;
+        let timestamp = 0;
+        for (let d = open + 1; d < i - 1; d++) timestamp = timestamp * 10 + (raw.charCodeAt(d) - 48);
+        const move = raw.slice(start, open);
+        const firstChar = move.charCodeAt(0) | 32;
+        // Only tokens starting with x/y/z can be rotations, so only they pay for the lookup.
+        if (firstChar >= 120 && firstChar <= 122 && ROTATIONS.has(move.toLowerCase())) continue;
+        result.push({ move, timestamp });
     }
     return result;
 }
@@ -95,34 +106,6 @@ export type StepSegments = { recognition: number; preAuf: number; coreExecution:
  * Cross: recognition=0, preAuf=0, postAuf=0, execution=all.
  * PLL skip (all U moves): preAuf=0, coreExecution=0, all time is postAuf.
  */
-/** Returns duration in ms of leading AUF moves from Cubeast recorded_moves string (for fallback when no timings). */
-function computeLeadingAufDurationMs(recordedMoves: string): number {
-    if (!recordedMoves || !recordedMoves.trim()) return 0;
-    const tokens = recordedMoves.trim().split(/\s+/);
-    let firstAufTs: number | null = null;
-    for (const token of tokens) {
-        const m = token.match(MOVE_TIMESTAMP_RE);
-        if (!m) continue;
-        const move = m[1];
-        const ts = Number(m[2]);
-        if (AUF_MOVES.has(move)) {
-            if (firstAufTs == null) firstAufTs = ts;
-        } else {
-            if (firstAufTs != null) return Math.max(0, ts - firstAufTs);
-            return 0;
-        }
-    }
-    let lastAufTs: number | null = null;
-    for (let i = tokens.length - 1; i >= 0; i--) {
-        const m = tokens[i].match(MOVE_TIMESTAMP_RE);
-        if (!m) continue;
-        if (AUF_MOVES.has(m[1])) lastAufTs = Number(m[2]);
-        else break;
-    }
-    if (firstAufTs != null && lastAufTs != null) return Math.max(0, lastAufTs - firstAufTs);
-    return 0;
-}
-
 export function computeStepSegments(
     moves: MoveTiming[],
     prevEndTsMs: number | null,
@@ -211,7 +194,19 @@ export function effectiveCrossExecutionSec(
     return segmentExecutionSec;
 }
 
-const COMMA_PLACEHOLDER = '\x01';
+/** Splits a CSV line on `splitter`, ignoring separators inside [...] (e.g. case "[FL,BR]->FR 30"). */
+function splitCsvLine(line: string, splitterCode: number): string[] {
+    const out: string[] = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < line.length; i++) {
+        const c = line.charCodeAt(i);
+        if (c === 91) depth++;
+        else if (c === 93) depth--;
+        else if (c === splitterCode && depth === 0) { out.push(line.slice(start, i)); start = i + 1; }
+    }
+    out.push(line.slice(start));
+    return out;
+}
 
 /** Parses "YYYY-MM-DD HH:mm:ss" (optionally suffixed, e.g. " UTC") as a UTC date. */
 function parseUtcDateTime(value: string): Date {
@@ -254,14 +249,11 @@ export function stripRotationsFromMoveString(movesString: string | undefined | n
 }
 
 function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
-    
-    // Replace commas inside [...] so split(splitter) does not break on e.g. step case "[FL,BR]->FR 30".
-    // Preserves bracket content (including timestamps in step_N_recorded_moves) for AUF parsing.
-    const normalized = stringVal.trim().replace(BRACKET_CONTENT_RE, (m) => m.indexOf(',') < 0 ? m : m.split(',').join(COMMA_PLACEHOLDER));
-
-    const [keys, ...rest] = normalized
-        .split("\n")
-        .map((item) => item.split(splitter));
+    // Separators inside [...] (e.g. step case "[FL,BR]->FR 30") are skipped while splitting,
+    // which avoids rewriting the whole 45MB export before it can be parsed.
+    const splitterCode = splitter.charCodeAt(0);
+    const [headerLine, ...rest] = stringVal.trim().split("\n");
+    const keys = splitCsvLine(headerLine, splitterCode);
 
     const keyMap: { [key: string]: (obj: Solve, value: string) => void } = {
         "id": (obj, value) => { obj.id = value; obj.rawSourceId = value; obj.source = 'cubeast'; },
@@ -288,7 +280,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "name": (step, value) => { step.name = value as StepName; },
         "slice_turns": (step, value) => { step.turns = Number(value); },
         "time": (step, value) => { step.time = Number(value) / 1000; },
-        "case": (step, value) => { step.case = value ? value.split(COMMA_PLACEHOLDER).join(',') : value; },
+        "case": (step, value) => { step.case = value; },
         "turns_per_second": (step, value) => { step.tps = Number(value); },
         "recognition_time": (step, value) => { step.recognitionTime = Number(value) / 1000; },
         "execution_time": (step, value) => { step.executionTime = Number(value) / 1000; },
@@ -302,9 +294,6 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
             const moveTimings = parseRecordedMoves(value);
             if (moveTimings.length > 0) {
                 (step as any)._moveTimings = moveTimings;
-            } else if (value && value.trim()) {
-                const aufMs = computeLeadingAufDurationMs(value);
-                if (aufMs > 0) (step as any).aufDurationMs = aufMs;
             }
         },
     };
@@ -319,7 +308,9 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     });
     const timeColumns = keys.map((key) => TIME_COLUMNS[key] ?? -1);
 
-    let formedArr = rest.map((item) => {
+    let formedArr = rest.map((line) => {
+        // Rows are split one at a time so the whole file is never held as cell strings at once.
+        const item = splitCsvLine(line, splitterCode);
         let obj = GetEmptySolve();
 
         // Track Cubeast time/pickup/putdown/solving times (ms) while parsing a row.
@@ -396,17 +387,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
             } else {
                 step.preAufTime = 0;
                 step.postAufTime = 0;
-                const aufMs = (step as any).aufDurationMs as number | undefined;
-                if (aufMs != null && aufMs > 0 && step.name !== StepName.Cross) {
-                    const stepTimeMs = step.time * 1000;
-                    const capMs = Math.min(aufMs, stepTimeMs);
-                    const deltaSec = capMs / 1000;
-                    step.recognitionTime = Math.max(0, step.recognitionTime - deltaSec);
-                    step.executionTime += deltaSec;
-                    step.preAufTime = deltaSec;
-                }
                 delete (step as any)._moveTimings;
-                delete (step as any).aufDurationMs;
                 delete (step as any)._csvCumulativeTimeSec;
                 if (prevEndTsMs != null && step.time > 0) {
                     prevEndTsMs += step.time * 1000;

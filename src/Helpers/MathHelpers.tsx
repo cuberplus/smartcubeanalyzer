@@ -1,4 +1,3 @@
-import { Deque } from "@datastructures-js/deque";
 import { Const } from "./Constants";
 import { Records } from "./Types";
 var Set = require("sorted-set");
@@ -189,19 +188,15 @@ export function calculateMovingStdDev(data: number[], window: number) {
         return result;
     }
 
-    let deque = new Deque<number>(new Array(window).fill(0));
+    // The window lookback is just data[i - window], padded with zeroes for the first window.
     let mean = 0;
     let variance = 0;
 
     for (let i = 0; i < data.length; i++) {
         let oldMean = mean;
-        let goingAway = deque.front();
+        let goingAway = i < window ? 0 : data[i - window];
         mean = oldMean + (data[i] - goingAway) / window;
         let newMean = mean;
-        deque.pushBack(data[i]);
-        if (deque.size() > window) {
-            deque.popFront()
-        }
         variance += (data[i] - goingAway) * ((data[i] - newMean) + (goingAway - oldMean)) / (window - 1)
         if (i >= (window - 1)) {
             // Floating point accumulation can push variance marginally below zero
