@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FileInput } from './FileInput';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { APP_VERSION } from '../Helpers/Version';
 import "../CSS/Style.css";
 import ReactGA from 'react-ga4';
 
@@ -30,6 +31,7 @@ function App() {
     <ThemeContext.Provider value={{ isDark, setTheme }}>
       <div className="App">
         <FileInput />
+        <footer id="footer" className="app-version">v{APP_VERSION}</footer>
       </div>
     </ThemeContext.Provider>
   );
