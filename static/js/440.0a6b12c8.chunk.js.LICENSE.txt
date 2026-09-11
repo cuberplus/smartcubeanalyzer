@@ -5,5 +5,3 @@
  * @class
  * double-ended queue
  */
-
-//! moment.js
