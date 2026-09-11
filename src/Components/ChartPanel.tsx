@@ -179,11 +179,10 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     }
 
     openSolveSource(params: CellClickArgs<FastestSolve>) {
-        if (params.row.source === 'acubemy' && params.row.rawSourceId) {
-            window.open("https://acubemy.com/shared/" + params.row.rawSourceId);
-            return;
-        }
-        window.open("https://app.cubeast.com/log/solves/" + params.row.id);
+        const url = params.row.source === 'acubemy' && params.row.rawSourceId
+            ? "https://acubemy.com/shared/" + encodeURIComponent(params.row.rawSourceId)
+            : "https://app.cubeast.com/log/solves/" + encodeURIComponent(params.row.id);
+        window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     createTooltip(description: string): JSX.Element {
