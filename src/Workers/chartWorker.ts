@@ -40,7 +40,7 @@ import {
     StreakRow,
 } from '../Helpers/Types';
 
-interface WorkerInput {
+export interface WorkerInput {
     requestId: number;
     solves: Solve[];
     windowSize: number;
@@ -79,7 +79,7 @@ function buildStreakData(fastestSolveEachDay: { [key: string]: number }, targetT
     return { longestStreak, currentStreak: streak };
 }
 
-function buildAllStreakRows(solves: Solve[]): StreakRow[] {
+export function buildAllStreakRows(solves: Solve[]): StreakRow[] {
     const fastestSolveEachDay: { [key: string]: number } = {};
     for (const solve of solves) {
         const day = solve.date.toLocaleDateString('en-CA');
@@ -105,7 +105,7 @@ function buildAllStreakRows(solves: Solve[]): StreakRow[] {
 
 // ── Records ──────────────────────────────────────────────────────────────────
 
-function buildRecordRows(solves: Solve[]): RecordRow[] {
+export function buildRecordRows(solves: Solve[]): RecordRow[] {
     const times = solves.map(x => x.time);
     const single = Math.min.apply(null, times.length ? times : [Infinity]);
     const ao5 = Math.min.apply(null, calculateMovingAverage(times, 5));
@@ -131,7 +131,7 @@ function buildRecordDataset(dates: Date[], times: number[]) {
     return records;
 }
 
-function buildRecordHistory(solves: Solve[]) {
+export function buildRecordHistory(solves: Solve[]) {
     const dates = solves.map(x => x.date);
     const times = solves.map(x => x.time);
     const ao5 = calculateMovingAverage(times, 5);
@@ -151,7 +151,7 @@ function buildRecordHistory(solves: Solve[]) {
 
 // ── Per-step charts ──────────────────────────────────────────────────────────
 
-function buildStepAverages(solves: Solve[], steps: StepName[], windowSize: number, pointsPerGraph: number) {
+export function buildStepAverages(solves: Solve[], steps: StepName[], windowSize: number, pointsPerGraph: number) {
     if (solves.length === 0 || steps.length === 0) {
         return { labels: [], datasets: [] };
     }
@@ -164,7 +164,7 @@ function buildStepAverages(solves: Solve[], steps: StepName[], windowSize: numbe
     return { labels, datasets };
 }
 
-function buildDailyRecordData(solves: Solve[]) {
+export function buildDailyRecordData(solves: Solve[]) {
     const fastestSolveEachDay: { [key: string]: number } = {};
     for (const solve of solves) {
         const day = solve.date.toLocaleDateString('en-CA');
@@ -181,7 +181,7 @@ function buildDailyRecordData(solves: Solve[]) {
 
 // ── Efficiency ───────────────────────────────────────────────────────────────
 
-function buildRunningEfficiencyData(
+export function buildRunningEfficiencyData(
     solves: Solve[],
     steps: StepName[],
     methodName: MethodName,
@@ -229,7 +229,7 @@ function buildRunningEfficiencyData(
 
 // ── Case data (OLL/PLL single-step) ──────────────────────────────────────────
 
-function buildCaseData(solves: Solve[], steps: StepName[], windowSize: number, use4SegmentTiming: boolean) {
+export function buildCaseData(solves: Solve[], steps: StepName[], windowSize: number, use4SegmentTiming: boolean) {
     const colors = SEGMENT_COLORS;
     if (steps.length !== 1 || (steps[0] !== StepName.OLL && steps[0] !== StepName.PLL)) {
         return { labels: [], datasets: [] };
@@ -294,7 +294,7 @@ function buildCaseData(solves: Solve[], steps: StepName[], windowSize: number, u
     };
 }
 
-function buildAlgorithmPracticeRows(solves: Solve[], steps: StepName[], windowSize: number): AlgoPracticeRow[] {
+export function buildAlgorithmPracticeRows(solves: Solve[], steps: StepName[], windowSize: number): AlgoPracticeRow[] {
     if (steps.length !== 1 || (steps[0] !== StepName.OLL && steps[0] !== StepName.PLL)) {
         return [];
     }
@@ -323,7 +323,7 @@ function buildAlgorithmPracticeRows(solves: Solve[], steps: StepName[], windowSi
 
 // ── Best solves ───────────────────────────────────────────────────────────────
 
-function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
+export function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
     return solves
         .slice()
         .sort((a, b) => a.time - b.time)
@@ -341,7 +341,7 @@ function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 
 // ── Main computation ──────────────────────────────────────────────────────────
 
-function computeAllChartData(input: WorkerInput): Record<string, unknown> {
+export function computeAllChartData(input: WorkerInput): Record<string, unknown> {
     const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);

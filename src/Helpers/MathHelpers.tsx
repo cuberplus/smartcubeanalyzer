@@ -204,7 +204,9 @@ export function calculateMovingStdDev(data: number[], window: number) {
         }
         variance += (data[i] - goingAway) * ((data[i] - newMean) + (goingAway - oldMean)) / (window - 1)
         if (i >= (window - 1)) {
-            result.push(Math.sqrt(variance))
+            // Floating point accumulation can push variance marginally below zero
+            // (e.g. a run of identical solve times), which would yield NaN.
+            result.push(Math.sqrt(Math.max(0, variance)))
         }
     }
 
