@@ -8,9 +8,10 @@
  *   - one end-to-end test for the whole page (CSV -> charts on screen)
  *   - one test per individual chart (data build + render)
  *
- * Budgets are deliberately generous so the suite is not flaky on slower CI
- * machines; they exist to catch order-of-magnitude regressions. Override with
- * CHART_PERF_PAGE_BUDGET_MS / CHART_PERF_CHART_BUDGET_MS. Every measurement is
+ * Budgets are tight - roughly the current timings plus a small margin - so that
+ * a slowdown is caught while it is still small. Override with
+ * CHART_PERF_PAGE_BUDGET_MS / CHART_PERF_CHART_BUDGET_MS /
+ * CHART_PERF_PARSE_BUDGET_MS / CHART_PERF_COMPUTE_BUDGET_MS. Every measurement is
  * printed so a regression is visible even when it stays inside budget.
  */
 import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals';
@@ -88,8 +89,15 @@ import {
     WorkerInput,
 } from '../Workers/chartWorker';
 
-const PAGE_BUDGET_MS = Number(process.env.CHART_PERF_PAGE_BUDGET_MS ?? 30_000);
-const CHART_BUDGET_MS = Number(process.env.CHART_PERF_CHART_BUDGET_MS ?? 10_000);
+// Deliberately aggressive: each budget is the slowest timing observed after the
+// parse/Solve Efficiency work plus ~250ms of slack, so any real slowdown fails
+// immediately. Raise via the env vars below if a slower machine needs room.
+const PAGE_BUDGET_MS = Number(process.env.CHART_PERF_PAGE_BUDGET_MS ?? 4_900);
+// The stage-by-stage run measures a little more work than the end-to-end one.
+const STAGE_TOTAL_BUDGET_MS = Number(process.env.CHART_PERF_STAGE_TOTAL_BUDGET_MS ?? 6_000);
+const CHART_BUDGET_MS = Number(process.env.CHART_PERF_CHART_BUDGET_MS ?? 900);
+const PARSE_BUDGET_MS = Number(process.env.CHART_PERF_PARSE_BUDGET_MS ?? 3_200);
+const COMPUTE_BUDGET_MS = Number(process.env.CHART_PERF_COMPUTE_BUDGET_MS ?? 1_600);
 
 const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo-solves.csv');
 const WINDOW_SIZE = 1000;
@@ -257,6 +265,7 @@ describe('full site load time', () => {
 
             const parse = time(() => parseCsv(rawCsv, ','));
             record('parse dev stats CSV', parse.ms);
+            expect(parse.ms).toBeLessThan(PARSE_BUDGET_MS);
 
             const filter = time(() =>
                 FilterPanel.applyFiltersToSolves(parse.result, defaultFilters(), WINDOW_SIZE)
@@ -268,6 +277,7 @@ describe('full site load time', () => {
 
             const charts = time(() => computeAllChartData(workerInput(compress.result)));
             record('compute all chart data', charts.ms);
+            expect(charts.ms).toBeLessThan(COMPUTE_BUDGET_MS);
 
             const paint = time(() => renderChartPanel(compress.result));
             record('render chart grid', paint.ms);
@@ -284,7 +294,8 @@ describe('full site load time', () => {
             required.forEach(key => expect(charts.result[key]).toBeTruthy());
 
             const totalMs = parse.ms + filter.ms + compress.ms + charts.ms + paint.ms;
-            expect(totalMs).toBeLessThan(PAGE_BUDGET_MS);
+            record('TOTAL of measured stages', totalMs);
+            expect(totalMs).toBeLessThan(STAGE_TOTAL_BUDGET_MS);
         },
         300_000
     );

@@ -4,6 +4,6 @@ module.exports = {
     testMatch: ['**/src/tests/**/*.test.ts?(x)'],
     moduleNameMapper: {
         '^.+/Workers/createChartWorker$': '<rootDir>/src/Workers/__mocks__/createChartWorker.ts',
-        '\\.css$': '<rootDir>/src/__mocks__/fileMock.js',
+        '\\.(css|png|jpe?g|gif|svg)$': '<rootDir>/src/__mocks__/fileMock.js',
     },
 };

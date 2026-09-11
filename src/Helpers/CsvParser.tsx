@@ -1,7 +1,6 @@
 import { Const } from "./Constants";
 import { GetEmptySolve } from "./CubeHelpers";
 import { Solve, CrossColor, MethodName, StepName } from "./Types";
-import moment from 'moment';
 
 export const AUF_MOVES = new Set(['U', "U'", 'U2', "U2'", "U3", "U3'"]);
 export const ROTATIONS = new Set([
@@ -77,11 +76,14 @@ export function parseRecordedMoves(raw: string): MoveTiming[] {
     const tokens = raw.trim().split(/\s+/);
     const result: MoveTiming[] = [];
     for (const token of tokens) {
-        const m = token.match(MOVE_TIMESTAMP_RE);
-        if (!m) continue;
-        const move = m[1];
+        // Hand-rolled equivalent of /^(.+)\[(\d+)\]$/; the regex backtracks badly on long move lists.
+        const open = token.lastIndexOf('[');
+        if (open < 1 || token.charCodeAt(token.length - 1) !== 93) continue;
+        const digits = token.slice(open + 1, -1);
+        if (!digits || !/^\d+$/.test(digits)) continue;
+        const move = token.slice(0, open);
         if (ROTATIONS.has(move.toLowerCase())) continue;
-        result.push({ move, timestamp: Number(m[2]) });
+        result.push({ move, timestamp: Number(digits) });
     }
     return result;
 }
@@ -211,6 +213,13 @@ export function effectiveCrossExecutionSec(
 
 const COMMA_PLACEHOLDER = '\x01';
 
+/** Parses "YYYY-MM-DD HH:mm:ss" (optionally suffixed, e.g. " UTC") as a UTC date. */
+function parseUtcDateTime(value: string): Date {
+    return new Date(Date.UTC(
+        +value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10),
+        +value.slice(11, 13), +value.slice(14, 16), +value.slice(17, 19)));
+}
+
 // --- Shared helpers for Acubemy move parsing  ---
 
 function normalizeMovesString(raw: string | undefined | null): string {
@@ -248,7 +257,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     
     // Replace commas inside [...] so split(splitter) does not break on e.g. step case "[FL,BR]->FR 30".
     // Preserves bracket content (including timestamps in step_N_recorded_moves) for AUF parsing.
-    const normalized = stringVal.trim().replace(BRACKET_CONTENT_RE, (m) => m.replace(/,/g, COMMA_PLACEHOLDER));
+    const normalized = stringVal.trim().replace(BRACKET_CONTENT_RE, (m) => m.indexOf(',') < 0 ? m : m.split(',').join(COMMA_PLACEHOLDER));
 
     const [keys, ...rest] = normalized
         .split("\n")
@@ -257,7 +266,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     const keyMap: { [key: string]: (obj: Solve, value: string) => void } = {
         "id": (obj, value) => { obj.id = value; obj.rawSourceId = value; obj.source = 'cubeast'; },
         "time": (obj, value) => { obj.time = Number(value) / 1000; if (obj.time < 1) obj.isCorrupt = true; },
-        "date": (obj, value) => { obj.date = moment.utc(value, 'YYYY-MM-DD hh:mm:ss').toDate(); },
+        "date": (obj, value) => { obj.date = parseUtcDateTime(value); },
         "solution_rotation": (obj, value) => {
             obj.crossColor = Const.crossMappings.get(value) ?? CrossColor.Unknown;
             if (obj.crossColor == CrossColor.Unknown) {
@@ -300,35 +309,29 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         },
     };
 
+    // Resolve each header column to its setter once, instead of re-parsing the key on every row.
+    const TIME_COLUMNS: { [key: string]: number } = { "time": 0, "pickup_time": 1, "putdown_time": 2, "solving_time": 3 };
+    const columnSetters = keys.map((key): ((obj: Solve, value: string) => void) | undefined => {
+        if (!key.startsWith("step_")) return keyMap[key];
+        const stepIndex = +key[5];
+        const setStep = stepKeyMap[key.split("_").slice(2).join("_")];
+        return setStep ? (obj, value) => setStep(obj.steps[stepIndex], value) : undefined;
+    });
+    const timeColumns = keys.map((key) => TIME_COLUMNS[key] ?? -1);
+
     let formedArr = rest.map((item) => {
         let obj = GetEmptySolve();
 
-        // Track Cubeast pickup/putdown/solving times (ms) while parsing a row.
-        let rawTimeMs: number | null = null;
-        let pickupTimeMs: number | null = null;
-        let putdownTimeMs: number | null = null;
-        let solvingTimeMs: number | null = null;
+        // Track Cubeast time/pickup/putdown/solving times (ms) while parsing a row.
+        const times = [0, 0, 0, 0];
 
-        keys.forEach((key, index) => {
+        for (let index = 0; index < columnSetters.length; index++) {
             const value = item[index];
-            if (key === "time") {
-                rawTimeMs = Number(value) || 0;
-            } else if (key === "pickup_time") {
-                pickupTimeMs = Number(value) || 0;
-            } else if (key === "putdown_time") {
-                putdownTimeMs = Number(value) || 0;
-            } else if (key === "solving_time") {
-                solvingTimeMs = Number(value) || 0;
-            }
-
-            if (key.startsWith("step_")) {
-                const stepIndex = +key[5];
-                const stepKey = key.split("_").slice(2).join("_");
-                stepKeyMap[stepKey]?.(obj.steps[stepIndex], value);
-            } else {
-                keyMap[key]?.(obj, value);
-            }
-        });
+            const timeColumn = timeColumns[index];
+            if (timeColumn >= 0) times[timeColumn] = Number(value) || 0;
+            columnSetters[index]?.(obj, value);
+        }
+        const [rawTimeMs, pickupTimeMs, putdownTimeMs, solvingTimeMs] = times;
 
         // After parsing the row, adjust Cubeast Solve.time to represent in-hand time:
         // 1) Prefer solving_time when present and > 0.
@@ -336,13 +339,11 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         // 3) Else, fall back to raw time.
         if (obj.source === 'cubeast') {
             let finalMs: number | null = null;
-            if (solvingTimeMs != null && solvingTimeMs > 0) {
+            if (solvingTimeMs > 0) {
                 finalMs = solvingTimeMs;
-            } else if (rawTimeMs != null && rawTimeMs > 0 &&
-                pickupTimeMs != null && putdownTimeMs != null &&
-                (pickupTimeMs > 0 || putdownTimeMs > 0)) {
+            } else if (rawTimeMs > 0 && (pickupTimeMs > 0 || putdownTimeMs > 0)) {
                 finalMs = rawTimeMs - pickupTimeMs - putdownTimeMs;
-            } else if (rawTimeMs != null && rawTimeMs > 0) {
+            } else if (rawTimeMs > 0) {
                 finalMs = rawTimeMs;
             }
 

@@ -13,8 +13,15 @@ function getDemoDataUrl(): string {
 }
 
 export function GetDemoData(): Promise<string> {
-    return fetch(getDemoDataUrl()).then((r) => {
+    // Ask for CSV explicitly: a dev server hosting the app under a base path
+    // redirects to the right URL for a CSV request, but answers a generic
+    // request with the SPA's index.html fallback.
+    return fetch(getDemoDataUrl(), { headers: { Accept: 'text/csv' } }).then((r) => {
         if (!r.ok) throw new Error('Failed to load demo data');
         return r.text();
+    }).then((text) => {
+        // Parsing an HTML page as a CSV silently produces junk solves and empty charts.
+        if (text.trimStart().startsWith('<')) throw new Error('Demo data request returned a web page instead of the CSV');
+        return text;
     });
 }

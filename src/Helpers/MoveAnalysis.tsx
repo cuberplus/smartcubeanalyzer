@@ -6,30 +6,28 @@ import { AufInefficiency, CaseStats, getStep, MoveAnalysisResult, RedundantPair,
  * and a mod-4 quarter-turn value.
  * Returns null for rotations (x, y, z) or unrecognised tokens.
  */
-function parseMoveToken(token: string): { face: string; quarterTurns: number } | null {
-    const m = token.match(/^([RLUDFBrludfbMESxyz]w?)([2']?)$/);
-    if (!m) {
-        const m2 = token.match(/^([RLUDFBrludfbMESxyz]w?)(2'|3'?)$/);
-        if (!m2) return null;
-        const face = m2[1];
-        const suffix = m2[2];
-        if (suffix === "2'" || suffix === "2") return { face, quarterTurns: 2 };
-        if (suffix === "3'" || suffix === "3") return { face, quarterTurns: 3 };
-        return null;
-    }
-    const face = m[1];
-    const suffix = m[2];
-    if (suffix === "") return { face, quarterTurns: 1 };
-    if (suffix === "'") return { face, quarterTurns: 3 };
-    if (suffix === "2") return { face, quarterTurns: 2 };
-    return null;
+type ParsedToken = { face: string; quarterTurns: number };
+
+const MOVE_TOKEN_RE = /^([RLUDFBrludfbMESxyz]w?)(2'|3'?|'|2)?$/;
+const SUFFIX_QUARTER_TURNS: { [suffix: string]: number } = { "": 1, "'": 3, "2": 2, "2'": 2, "3": 3, "3'": 3 };
+
+/** The move vocabulary is tiny and repeats across every solve, so parsed tokens are memoised. */
+const MOVE_TOKEN_CACHE = new Map<string, ParsedToken | null>();
+function parseMoveToken(token: string): ParsedToken | null {
+    let cached = MOVE_TOKEN_CACHE.get(token);
+    if (cached === undefined) MOVE_TOKEN_CACHE.set(token, cached = parseMoveTokenUncached(token));
+    return cached;
+}
+
+function parseMoveTokenUncached(token: string): ParsedToken | null {
+    const m = token.match(MOVE_TOKEN_RE);
+    if (!m) return null;
+    const quarterTurns = SUFFIX_QUARTER_TURNS[m[2] ?? ""];
+    return quarterTurns === undefined ? null : { face: m[1], quarterTurns };
 }
 
 function quarterTurnsToSliceTurns(qt: number): number {
-    const mod = ((qt % 4) + 4) % 4;
-    if (mod === 0) return 0;
-    if (mod === 2) return 1;
-    return 1; // mod 1 or 3 → single slice turn
+    return ((qt % 4) + 4) % 4 === 0 ? 0 : 1;
 }
 
 function quarterTurnsToNotation(face: string, qt: number): string {
@@ -225,6 +223,14 @@ export function computeAufInefficiency(step: Step): AufInefficiency {
     return { preAufMoves, postAufMoves, totalAufTime, isHighCost };
 }
 
+/** Lazily-built, per-CaseStats set of the solve ids that failed, so lookups are O(1) instead of a scan. */
+const failedSolveIdsCache = new WeakMap<CaseStats, Set<string>>();
+function failedSolveIds(stats: CaseStats): Set<string> {
+    let ids = failedSolveIdsCache.get(stats);
+    if (!ids) failedSolveIdsCache.set(stats, ids = new Set(stats.instances.filter((i) => i.failed).map((i) => i.solveId)));
+    return ids;
+}
+
 export function computeSolveEfficiency(
     solve: Solve,
     ollCaseStats?: Map<string, CaseStats>,
@@ -233,9 +239,10 @@ export function computeSolveEfficiency(
     let totalOriginal = 0;
     let totalSimplified = 0;
 
+    const aufMoves = getAufMovesForSolve(solve);
     for (const step of solve.steps) {
         if (!step.moves) continue;
-        const analysis = analyzeStepMoves(step.moves, getAufMovesForSolve(solve));
+        const analysis = analyzeStepMoves(step.moves, aufMoves);
         totalOriginal += analysis.originalTurns;
         totalSimplified += analysis.simplifiedTurns;
     }
@@ -248,19 +255,13 @@ export function computeSolveEfficiency(
     const ollStep = getStep(solve, StepName.OLL);
     if (ollStep && ollStep.case && ollCaseStats) {
         const stats = ollCaseStats.get(ollStep.case);
-        if (stats) {
-            const inst = stats.instances.find((i) => i.solveId === solve.id);
-            hadOllFailure = inst?.failed ?? false;
-        }
+        hadOllFailure = stats ? failedSolveIds(stats).has(solve.id) : false;
     }
 
     const pllStep = getStep(solve, StepName.PLL);
     if (pllStep && pllStep.case && pllCaseStats) {
         const stats = pllCaseStats.get(pllStep.case);
-        if (stats) {
-            const inst = stats.instances.find((i) => i.solveId === solve.id);
-            hadPllFailure = inst?.failed ?? false;
-        }
+        hadPllFailure = stats ? failedSolveIds(stats).has(solve.id) : false;
     }
 
     return { moveEfficiency, hadOllFailure, hadPllFailure };
