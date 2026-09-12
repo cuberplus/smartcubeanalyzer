@@ -16,7 +16,6 @@ import { ThemeContext } from "../contexts/ThemeContext";
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { Const } from "../Helpers/Constants";
 import DataGrid, { CellClickArgs, Column, RenderCellProps, SortColumn } from 'react-data-grid';
-import 'react-data-grid/lib/styles.css';
 import 'chartjs-adapter-moment';
 import { createChartWorker } from '../Workers/createChartWorker';
 
