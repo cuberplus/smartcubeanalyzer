@@ -42,7 +42,29 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "rules": {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/ban-types": [
+        "error",
+        {
+          "types": {
+            "object": "Describe the actual shape, or use Record<K, V>.",
+            "{}": "Describe the actual shape, or use Record<K, V>.",
+            "Object": "Describe the actual shape, or use Record<K, V>.",
+            "Function": "Declare the parameter and return types explicitly."
+          },
+          "extendDefaults": true
+        }
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "TSUnknownKeyword",
+          "message": "'unknown' is not a strong type. Declare the actual shape, or use a generic if it varies by caller."
+        }
+      ]
+    }
   },
   "browserslist": {
     "production": [

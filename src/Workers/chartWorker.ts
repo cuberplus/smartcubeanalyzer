@@ -1,4 +1,3 @@
-import type { ChartData } from 'chart.js/auto';
 import {
     calculateMovingAverage,
     calculateMovingPercentage,
@@ -30,7 +29,9 @@ import { Const } from '../Helpers/Constants';
 import {
     AlgoPracticeRow,
     CaseStats,
+    ChartDataBundle,
     FastestSolve,
+    LabelledChart,
     getStep,
     MethodName,
     RecordRow,
@@ -341,7 +342,7 @@ export function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 
 // ── Main computation ──────────────────────────────────────────────────────────
 
-export function computeAllChartData(input: WorkerInput): Record<string, unknown> {
+export function computeAllChartData(input: WorkerInput): ChartDataBundle {
     const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
@@ -351,51 +352,41 @@ export function computeAllChartData(input: WorkerInput): Record<string, unknown>
     const inspectionSolves = solves.filter((s): s is Solve & { inspectionTime: number } => s.inspectionTime != null);
     const showInspectionCharts = shouldShowInspectionCharts(solves) && inspectionSolves.length > 0;
 
-    const cache: Record<string, unknown> = {
-        runningAverage: buildRunningAverageData(solves, windowSize, pointsPerGraph),
-        runningStdDev: buildRunningStdDevData(solves, windowSize, pointsPerGraph),
-        runningTps: buildRunningTpsData(solves, windowSize, pointsPerGraph),
+    // Charts that carry their own semantic colours are left alone by the palette.
+    const paint = <T extends 'line' | 'bar' | 'doughnut', TLabel>(data: LabelledChart<T, TLabel>, perPointColors?: boolean): LabelledChart<T, TLabel> =>
+        applyPaletteToChartData(data, isDark, perPointColors);
+
+    const cache: ChartDataBundle = {
+        runningAverage: paint(buildRunningAverageData(solves, windowSize, pointsPerGraph)),
+        runningStdDev: paint(buildRunningStdDevData(solves, windowSize, pointsPerGraph)),
+        runningTps: paint(buildRunningTpsData(solves, windowSize, pointsPerGraph)),
         runningInspection: showInspectionCharts
-            ? buildRunningInspectionData(inspectionSolves, windowSize, pointsPerGraph)
+            ? paint(buildRunningInspectionData(inspectionSolves, windowSize, pointsPerGraph))
             : null,
-        runningTurns: buildRunningTurnsData(solves, windowSize, pointsPerGraph),
-        runningRecognitionExecution: buildRunningRecognitionExecution(solves, windowSize, pointsPerGraph, use4SegmentTiming),
-        runningEfficiency: buildRunningEfficiencyData(solves, steps, methodName, windowSize, pointsPerGraph),
-        histogram: buildHistogramData(solves, windowSize),
-        stepAverages: buildStepAverages(solves, steps, windowSize, pointsPerGraph),
-        runningColorPercentages: buildRunningColorPercentages(solves, windowSize, pointsPerGraph, isDark),
+        runningTurns: paint(buildRunningTurnsData(solves, windowSize, pointsPerGraph)),
+        runningRecognitionExecution: paint(buildRunningRecognitionExecution(solves, windowSize, pointsPerGraph, use4SegmentTiming)),
+        runningEfficiency: paint(buildRunningEfficiencyData(solves, steps, methodName, windowSize, pointsPerGraph)),
+        histogram: paint(buildHistogramData(solves, windowSize)),
+        stepAverages: paint(buildStepAverages(solves, steps, windowSize, pointsPerGraph)),
+        runningColorPercentages: paint(buildRunningColorPercentages(solves, windowSize, pointsPerGraph, isDark)),
         inspection: showInspectionCharts
-            ? buildInspectionData(inspectionSolves, windowSize)
+            ? paint(buildInspectionData(inspectionSolves, windowSize))
             : null,
-        dailyRecord: buildDailyRecordData(solves),
+        dailyRecord: paint(buildDailyRecordData(solves)),
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(solves),
-        goodBad: buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime),
-        recordHistory: buildRecordHistory(solves),
-        stepPercentages: buildStepPercentages(solves, steps, windowSize),
-        typicalCompare: buildTypicalCompare(solves, windowSize),
+        goodBad: paint(buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime)),
+        recordHistory: applyPaletteToChartData(buildRecordHistory(solves), isDark),
+        stepPercentages: paint(buildStepPercentages(solves, steps, windowSize), true),
+        typicalCompare: paint(buildTypicalCompare(solves, windowSize)),
         bestSolvesData: computeBestSolvesData(solves),
     };
 
-    if (hasOll) cache.ollCategory = buildOllCategoryChart(solves, windowSize, pointsPerGraph);
-    if (hasPll) cache.pllCategory = buildPllCategoryChart(solves, windowSize, pointsPerGraph);
+    if (hasOll) cache.ollCategory = paint(buildOllCategoryChart(solves, windowSize, pointsPerGraph));
+    if (hasPll) cache.pllCategory = paint(buildPllCategoryChart(solves, windowSize, pointsPerGraph));
     if (steps.length === 1 && (steps[0] === StepName.OLL || steps[0] === StepName.PLL)) {
-        cache.caseData = buildCaseData(solves, steps, windowSize, use4SegmentTiming);
+        cache.caseData = paint(buildCaseData(solves, steps, windowSize, use4SegmentTiming));
         cache.algoPracticeRows = buildAlgorithmPracticeRows(solves, steps, windowSize);
-    }
-
-    // Apply colour palette to every plain chart-data object
-    const chartDataKeys = [
-        'runningAverage', 'runningStdDev', 'runningTps', 'runningInspection', 'runningTurns',
-        'runningRecognitionExecution', 'runningEfficiency', 'histogram', 'stepAverages',
-        'runningColorPercentages', 'inspection', 'dailyRecord', 'goodBad', 'recordHistory',
-        'stepPercentages', 'typicalCompare', 'ollCategory', 'pllCategory', 'caseData',
-    ] as const;
-    for (const key of chartDataKeys) {
-        const val = cache[key];
-        if (val && typeof val === 'object' && 'datasets' in val && Array.isArray((val as { datasets: unknown }).datasets)) {
-            cache[key] = applyPaletteToChartData(val as ChartData<'line'>, isDark, key === 'stepPercentages');
-        }
     }
 
     return cache;
@@ -403,7 +394,22 @@ export function computeAllChartData(input: WorkerInput): Record<string, unknown>
 
 // ── Worker message handler ────────────────────────────────────────────────────
 
-const workerGlobal = globalThis as any;
+export interface WorkerOutput {
+    requestId: number;
+    chartData: ChartDataBundle;
+}
+
+/**
+ * Inside a worker the global is a DedicatedWorkerGlobalScope, but this project compiles
+ * with the DOM lib, where `globalThis` is typed as a Window. Only the two members the
+ * worker actually uses are declared.
+ */
+export interface ChartWorkerScope {
+    onmessage: ((e: MessageEvent<WorkerInput>) => void) | null;
+    postMessage(message: WorkerOutput): void;
+}
+
+const workerGlobal = globalThis as ChartWorkerScope;
 workerGlobal.onmessage = function (e: MessageEvent<WorkerInput>) {
     workerGlobal.postMessage({
         requestId: e.data.requestId,

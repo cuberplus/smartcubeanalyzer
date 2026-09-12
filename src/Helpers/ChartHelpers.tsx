@@ -28,112 +28,71 @@ export function buildChartHtml(chart: JSX.Element, title: string, tooltip: strin
     )
 }
 
+interface ScaleTitle { display?: boolean; text?: string; color?: string; }
+interface ScaleGrid { color?: string; }
+interface ScaleTicks { autoSkip?: boolean; maxRotation?: number; color?: string; }
+
+interface ScaleOptions {
+    title?: ScaleTitle;
+    grid?: ScaleGrid;
+    ticks?: ScaleTicks;
+    stacked?: boolean;
+    type?: 'logarithmic' | 'timeseries';
+    timeseries?: { units: string; displayFormats: Record<string, string> };
+}
+
+export interface CubeChartOptions {
+    maintainAspectRatio: boolean;
+    spanGaps?: boolean;
+    scales?: Record<string, ScaleOptions>;
+}
+
 const darkScaleOptions = {
     grid: { color: DARK_AXIS_COLORS.grid },
     ticks: { color: DARK_AXIS_COLORS.label },
     title: { color: DARK_AXIS_COLORS.label },
 };
 
-function applyDarkScaleOptions(scales: Record<string, unknown>): void {
-    if (!scales) return;
-    for (const key of Object.keys(scales)) {
-        const s = scales[key] as Record<string, unknown>;
-        if (s && typeof s === 'object') {
-            const existingGrid = (s.grid as Record<string, unknown>) || {};
-            const existingTicks = (s.ticks as Record<string, unknown>) || {};
-            const existingTitle = (s.title as Record<string, unknown>) || {};
-            scales[key] = {
-                ...s,
-                grid: { ...existingGrid, ...darkScaleOptions.grid },
-                ticks: { ...existingTicks, ...darkScaleOptions.ticks },
-                title: { ...existingTitle, ...darkScaleOptions.title }
-            };
-        }
+function applyDarkScaleOptions(scales: Record<string, ScaleOptions>): void {
+    for (const [key, s] of Object.entries(scales)) {
+        scales[key] = {
+            ...s,
+            grid: { ...s.grid, ...darkScaleOptions.grid },
+            ticks: { ...s.ticks, ...darkScaleOptions.ticks },
+            title: { ...s.title, ...darkScaleOptions.title },
+        };
     }
 }
 
-export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false, isDark: boolean = false) {
-    let genericOptions: any = {
-        maintainAspectRatio: false
-    };
+export function createOptions(chartType: ChartType, xAxis: string, yAxis: string, useLogScale: boolean, isStacked: boolean = true, isDateChart: boolean = false, isDark: boolean = false): CubeChartOptions {
+    const chartOptions: CubeChartOptions = { maintainAspectRatio: false };
 
-    let chartOptions: any = {};
+    if (chartType === ChartType.Doughnut) return chartOptions;
 
-    switch (chartType) {
-        case ChartType.Line:
-            chartOptions = {
-                spanGaps: true,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: xAxis
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: yAxis
-                        }
-                    }
-                }
-            };
-
-            if (isDateChart) {
-                chartOptions.scales.x.type = 'timeseries';
-                chartOptions.scales.x.timeseries = {
-                    units: 'quarter',
-                    displayFormats: {
-                        quarter: 'MMM yyyy'
-                    }
-                };
-            }
-
-            if (useLogScale) {
-                chartOptions.scales.y.type = 'logarithmic';
-            }
-            break;
-
-        case ChartType.Bar:
-            chartOptions = {
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: xAxis
-                        },
-                        stacked: isStacked,
-                        ticks: {
-                            autoSkip: true,
-                            maxRotation: 45,
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: yAxis
-                        },
-                        stacked: isStacked
-                    }
-                }
-            };
-
-            if (useLogScale) {
-                chartOptions.scales.y.type = 'logarithmic';
-            }
-            break;
-
-        case ChartType.Doughnut:
-            chartOptions = {
-            }
-            break;
-        default:
-            console.log("Unknown chart type: " + chartType)
+    if (chartType !== ChartType.Line && chartType !== ChartType.Bar) {
+        console.log("Unknown chart type: " + chartType);
+        return chartOptions;
     }
 
-    if (isDark && chartOptions.scales) {
-        applyDarkScaleOptions(chartOptions.scales);
+    const x: ScaleOptions = { title: { display: true, text: xAxis } };
+    const y: ScaleOptions = { title: { display: true, text: yAxis } };
+
+    if (chartType === ChartType.Line) {
+        chartOptions.spanGaps = true;
+        if (isDateChart) {
+            x.type = 'timeseries';
+            x.timeseries = { units: 'quarter', displayFormats: { quarter: 'MMM yyyy' } };
+        }
+    } else {
+        x.stacked = isStacked;
+        x.ticks = { autoSkip: true, maxRotation: 45 };
+        y.stacked = isStacked;
     }
 
-    return { ...chartOptions, ...genericOptions };
+    if (useLogScale) y.type = 'logarithmic';
+
+    chartOptions.scales = { x, y };
+    if (isDark) applyDarkScaleOptions(chartOptions.scales);
+
+    return chartOptions;
 }

@@ -3,29 +3,20 @@ import { Const } from '../Helpers/Constants';
 import { CrossColor, MethodName, Solve, StepName } from '../Helpers/Types';
 import { makeCfopSteps, makeDailySolves, makeSolve, makeSolves, makeStep } from './testUtils';
 
-// The worker registers its handler on the global scope at import time.
+// The worker registers its handler on the global scope at import time. This side-effect import must
+// stay separate: the type-only import below is erased at compile time and would not run the module.
 import '../Workers/chartWorker';
+import type { ChartWorkerScope, WorkerInput, WorkerOutput } from '../Workers/chartWorker';
 
-const workerGlobal = globalThis as any;
+const workerGlobal = globalThis as ChartWorkerScope;
 
-type WorkerRequest = {
-    requestId: number;
-    solves: Solve[];
-    windowSize: number;
-    pointsPerGraph: number;
-    steps: StepName[];
-    goodTime: number;
-    badTime: number;
-    methodName: MethodName;
-    use4SegmentTiming: boolean;
-    isDark: boolean;
-};
+type WorkerRequest = WorkerInput;
 
 const ALL_CFOP_STEPS = Const.MethodSteps[MethodName.CFOP];
 
-function run(overrides: Partial<WorkerRequest> = {}): Record<string, any> {
-    const posted: any[] = [];
-    workerGlobal.postMessage = (msg: any) => posted.push(msg);
+function run(overrides: Partial<WorkerRequest> = {}): WorkerOutput {
+    const posted: WorkerOutput[] = [];
+    workerGlobal.postMessage = (msg: WorkerOutput) => posted.push(msg);
     const request: WorkerRequest = {
         requestId: 1,
         solves: makeSolves(20),
@@ -39,7 +30,7 @@ function run(overrides: Partial<WorkerRequest> = {}): Record<string, any> {
         isDark: false,
         ...overrides,
     };
-    workerGlobal.onmessage({ data: request } as MessageEvent);
+    workerGlobal.onmessage!({ data: request } as MessageEvent<WorkerInput>);
     expect(posted).toHaveLength(1);
     return posted[0];
 }
@@ -102,7 +93,7 @@ describe('chartWorker OLL/PLL category charts', () => {
     test('omits case data unless a single last-layer step is selected', () => {
         const { chartData } = run({ steps: ALL_CFOP_STEPS });
         expect(chartData.caseData).toBeUndefined();
-        expect(chartData.algoPracticeRows).toBeUndefined();
+        expect(chartData.algoPracticeRows!).toBeUndefined();
     });
 });
 
@@ -122,18 +113,18 @@ describe('chartWorker case data', () => {
 
     test('builds one label per case, slowest case first', () => {
         const { chartData } = run({ solves: ollSolves(), steps: [StepName.OLL], windowSize: 2 });
-        expect(chartData.caseData.labels).toEqual(['Anti Sune', 'Sune']);
+        expect(chartData.caseData!.labels).toEqual(['Anti Sune', 'Sune']);
     });
 
     test('splits recognition and execution into separate datasets', () => {
         const { chartData } = run({ solves: ollSolves(), steps: [StepName.OLL], windowSize: 2 });
-        expect(chartData.caseData.datasets).toHaveLength(2);
-        expect(chartData.caseData.datasets[0].data[0]).toBeCloseTo(3);
+        expect(chartData.caseData!.datasets).toHaveLength(2);
+        expect(chartData.caseData!.datasets[0].data[0]).toBeCloseTo(3);
     });
 
     test('keeps semantic segment colors instead of the generic palette', () => {
         const { chartData } = run({ solves: ollSolves(), steps: [StepName.OLL], windowSize: 2 });
-        expect(chartData.caseData.datasets[0].backgroundColor).toBe('rgb(54, 162, 235)');
+        expect(chartData.caseData!.datasets[0].backgroundColor).toBe('rgb(54, 162, 235)');
     });
 
     test('splits out pre-AUF and post-AUF when 4-segment timing is on', () => {
@@ -144,28 +135,28 @@ describe('chartWorker case data', () => {
             }),
         ];
         const { chartData } = run({ solves, steps: [StepName.PLL], windowSize: 5, use4SegmentTiming: true });
-        const labels = chartData.caseData.datasets.map((d: any) => d.label);
-        expect(labels.some((l: string) => l.startsWith('Pre-AUF'))).toBe(true);
-        expect(labels.some((l: string) => l.startsWith('Post-AUF'))).toBe(true);
+        const labels = chartData.caseData!.datasets.map((d) => d.label);
+        expect(labels.some((l) => l!.startsWith('Pre-AUF'))).toBe(true);
+        expect(labels.some((l) => l!.startsWith('Post-AUF'))).toBe(true);
     });
 
     test('hides AUF datasets when no solve spent time on AUF', () => {
         const { chartData } = run({ solves: ollSolves(), steps: [StepName.OLL], windowSize: 2, use4SegmentTiming: true });
-        const labels = chartData.caseData.datasets.map((d: any) => d.label);
-        expect(labels.some((l: string) => l.startsWith('Pre-AUF'))).toBe(false);
-        expect(labels.some((l: string) => l.startsWith('Post-AUF'))).toBe(false);
+        const labels = chartData.caseData!.datasets.map((d) => d.label);
+        expect(labels.some((l) => l!.startsWith('Pre-AUF'))).toBe(false);
+        expect(labels.some((l) => l!.startsWith('Post-AUF'))).toBe(false);
     });
 
     test('ignores solves whose selected step has no case', () => {
         const solves = [...ollSolves(), makeSolve({ id: 'c', steps: [makeStep(StepName.OLL, 2)] })];
         const { chartData } = run({ solves, steps: [StepName.OLL], windowSize: 5 });
-        expect(chartData.caseData.labels).toHaveLength(2);
+        expect(chartData.caseData!.labels).toHaveLength(2);
     });
 
     test('builds an algorithm practice row per non-solved case', () => {
         const { chartData } = run({ solves: ollSolves(), steps: [StepName.OLL], windowSize: 2 });
-        expect(chartData.algoPracticeRows).toHaveLength(2);
-        const row = chartData.algoPracticeRows.find((r: any) => r.case === 'Sune');
+        expect(chartData.algoPracticeRows!).toHaveLength(2);
+        const row = chartData.algoPracticeRows!.find((r) => r.case === 'Sune')!;
         expect(row.total).toBe(1);
         expect(row.failureRate).toMatch(/%$/);
         expect(row.avgTime).toBe('3.000');
@@ -176,21 +167,21 @@ describe('chartWorker streaks', () => {
     test('counts a streak of consecutive days under the target', () => {
         const solves = makeDailySolves(5, [8]);
         const { chartData } = run({ solves });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.longeststreak).toBe('5');
     });
 
     test('marks the current streak with a flame when it is also the longest', () => {
         const solves = makeDailySolves(5, [8]);
         const { chartData } = run({ solves });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.currentstreak).toBe('5 🔥');
     });
 
     test('breaks the streak on a day slower than the target', () => {
         const solves = makeDailySolves(5, [8, 8, 30, 8, 8]);
         const { chartData } = run({ solves });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.longeststreak).toBe('2');
         expect(subTen.currentstreak).toBe('2 🔥');
     });
@@ -199,7 +190,7 @@ describe('chartWorker streaks', () => {
         const solves = makeDailySolves(3, [8]);
         const gap = makeSolve({ id: 'gap', date: new Date('2024-02-01T12:00:00Z'), time: 8 });
         const { chartData } = run({ solves: [...solves, gap] });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.longeststreak).toBe('3');
         expect(subTen.currentstreak).toBe('1');
     });
@@ -207,14 +198,14 @@ describe('chartWorker streaks', () => {
     test('reports no streak when every day is above the target', () => {
         const solves = makeDailySolves(4, [40]);
         const { chartData } = run({ solves });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.longeststreak).toBe('0');
         expect(subTen.currentstreak).toBe('0');
     });
 
     test('always reports the six streak targets', () => {
         const { chartData } = run();
-        expect(chartData.streakRows.map((r: any) => r.time))
+        expect(chartData.streakRows.map((r) => r.time))
             .toEqual(['Sub-5', 'Sub-10', 'Sub-15', 'Sub-20', 'Sub-30', 'Overall']);
     });
 
@@ -225,7 +216,7 @@ describe('chartWorker streaks', () => {
             makeSolve({ id: 'fast', date: day, time: 9 }),
         ];
         const { chartData } = run({ solves });
-        const subTen = chartData.streakRows.find((r: any) => r.time === 'Sub-10');
+        const subTen = chartData.streakRows.find((r) => r.time === 'Sub-10')!;
         expect(subTen.longeststreak).toBe('1');
     });
 });
@@ -234,27 +225,27 @@ describe('chartWorker records', () => {
     test('reports the fastest single', () => {
         const solves = makeDailySolves(10, [20, 19, 11, 25, 30, 18, 17, 16, 15, 14]);
         const { chartData } = run({ solves });
-        const single = chartData.recordRows.find((r: any) => r.recordType === 'Single');
+        const single = chartData.recordRows.find((r) => r.recordType === 'Single')!;
         expect(single.time).toBe('11.000');
     });
 
     test('reports Infinity for averages that need more solves than exist', () => {
         const { chartData } = run({ solves: makeSolves(3) });
-        const ao12 = chartData.recordRows.find((r: any) => r.recordType === 'Ao12');
+        const ao12 = chartData.recordRows.find((r) => r.recordType === 'Ao12')!;
         expect(ao12.time).toBe('Infinity');
     });
 
     test('record history only moves downward', () => {
         const solves = makeDailySolves(6, [20, 25, 15, 30, 10, 12]);
         const { chartData } = run({ solves });
-        const singles = chartData.recordHistory.datasets.find((d: any) => d.label === 'Record Single');
-        const ys = singles.data.map((p: any) => p.y);
+        const singles = chartData.recordHistory.datasets.find((d) => d.label === 'Record Single')!;
+        const ys = singles.data.map((p) => p.y);
         expect(ys).toEqual([20, 15, 10]);
     });
 
     test('record history exposes a dataset per record type', () => {
         const { chartData } = run();
-        expect(chartData.recordHistory.datasets.map((d: any) => d.label))
+        expect(chartData.recordHistory.datasets.map((d) => d.label))
             .toEqual(['Record Single', 'Record Ao5', 'Record Ao12', 'Record Ao100']);
     });
 
@@ -269,7 +260,7 @@ describe('chartWorker records', () => {
     test('flags full-step solves in the fastest solves table', () => {
         const solves = [makeSolve({ isFullStep: true }), makeSolve({ id: 'b', isFullStep: false })];
         const { chartData } = run({ solves });
-        const flags = chartData.bestSolvesData.map((s: any) => s.fullstep);
+        const flags = chartData.bestSolvesData.map((s) => s.fullstep);
         expect(flags).toContain('Yes 🔥');
         expect(flags).toContain('No');
     });
@@ -280,7 +271,7 @@ describe('chartWorker daily records', () => {
         const solves = makeDailySolves(3, [20, 15, 25]);
         const { chartData } = run({ solves });
         expect(chartData.dailyRecord.labels).toHaveLength(3);
-        expect([...chartData.dailyRecord.labels].sort()).toEqual(chartData.dailyRecord.labels);
+        expect([...chartData.dailyRecord.labels!].sort()).toEqual(chartData.dailyRecord.labels);
     });
 
     test('plots the fastest time of each day', () => {
@@ -343,9 +334,9 @@ describe('chartWorker efficiency', () => {
     test('adds OLL and PLL success datasets when all CFOP steps are selected', () => {
         const solves = Array.from({ length: 6 }, efficientSolve);
         const { chartData } = run({ solves, windowSize: 5, steps: ALL_CFOP_STEPS });
-        const labels = chartData.runningEfficiency.datasets.map((d: any) => d.label);
-        expect(labels.some((l: string) => l.startsWith('OLL success'))).toBe(true);
-        expect(labels.some((l: string) => l.startsWith('PLL success'))).toBe(true);
+        const labels = chartData.runningEfficiency.datasets.map((d) => d.label);
+        expect(labels.some((l) => l!.startsWith('OLL success'))).toBe(true);
+        expect(labels.some((l) => l!.startsWith('PLL success'))).toBe(true);
     });
 
     test('omits success datasets when only a subset of steps is selected', () => {
@@ -362,9 +353,9 @@ describe('chartWorker efficiency', () => {
             methodName: MethodName.CFOP_2OLL,
             steps: Const.MethodSteps[MethodName.CFOP_2OLL],
         });
-        const labels = chartData.runningEfficiency.datasets.map((d: any) => d.label);
-        expect(labels.some((l: string) => l.startsWith('OLL success'))).toBe(false);
-        expect(labels.some((l: string) => l.startsWith('PLL success'))).toBe(true);
+        const labels = chartData.runningEfficiency.datasets.map((d) => d.label);
+        expect(labels.some((l) => l!.startsWith('OLL success'))).toBe(false);
+        expect(labels.some((l) => l!.startsWith('PLL success'))).toBe(true);
     });
 
     test('omits both success datasets for methods with neither OLL nor PLL', () => {
@@ -404,7 +395,7 @@ describe('chartWorker inspection charts', () => {
             ...makeSolves(5, { source: 'acubemy', inspectionTime: null }),
         ];
         const { chartData } = run({ solves, windowSize: 5 });
-        expect(chartData.runningInspection.datasets[0].data).toHaveLength(1);
+        expect(chartData.runningInspection!.datasets[0].data).toHaveLength(1);
     });
 });
 

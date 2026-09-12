@@ -2,7 +2,6 @@
  * Pure functions that build chart datasets from solves and options.
  * Used by ChartPanel and can be wrapped in useMemo when using function components.
  */
-import type { ChartData } from 'chart.js/auto';
 import { Const } from './Constants';
 import {
     calculateAverage,
@@ -14,7 +13,7 @@ import {
     splitIntoChunks,
     getTypicalAverages,
 } from './MathHelpers';
-import { CrossColor, getStep, Solve, StepName } from './Types';
+import { CrossColor, getStep, LabelledChart, Solve, StepName } from './Types';
 import { OllEdgeOrientation, PllCornerPermutation } from './Types';
 import { SEGMENT_COLORS } from './ChartColors';
 
@@ -25,7 +24,7 @@ function buildMovingLineChart(
     windowSize: number,
     pointsPerGraph: number,
     series: Array<{ extract: (s: Solve) => number; calcFn: MovingCalcFn; label: string }>
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     const allData = series.map(s => s.calcFn(solves.map(s.extract), windowSize));
     const reducedData = allData.map(d => reduceDataset(d, pointsPerGraph));
     const labels = makeLabels(allData[0].length, pointsPerGraph);
@@ -35,19 +34,19 @@ function buildMovingLineChart(
     };
 }
 
-export function buildRunningAverageData(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildRunningAverageData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
         { extract: x => x.time, calcFn: calculateMovingAverage, label: `Average Time Of ${windowSize}` },
     ]);
 }
 
-export function buildRunningStdDevData(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildRunningStdDevData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
         { extract: x => x.time, calcFn: calculateMovingStdDev, label: `Average StdDev Of ${windowSize}` },
     ]);
 }
 
-export function buildRunningTpsData(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildRunningTpsData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
         { extract: x => x.tps, calcFn: calculateMovingAverage, label: `Average TPS Of ${windowSize}` },
         { extract: x => x.executionTime > 0 ? x.turns / x.executionTime : 0, calcFn: calculateMovingAverage, label: `Average TPS During Execution Of ${windowSize}` },
@@ -58,13 +57,13 @@ export function buildRunningInspectionData(
     solves: Array<Solve & { inspectionTime: number }>,
     windowSize: number,
     pointsPerGraph: number
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
         { extract: x => x.inspectionTime!, calcFn: calculateMovingAverage, label: `Average Inspection Of ${windowSize}` },
     ]);
 }
 
-export function buildRunningTurnsData(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildRunningTurnsData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
         { extract: x => x.turns, calcFn: calculateMovingAverage, label: `Average Turns Of ${windowSize}` },
     ]);
@@ -75,7 +74,7 @@ export function buildRunningRecognitionExecution(
     windowSize: number,
     pointsPerGraph: number,
     use4SegmentTiming: boolean
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     const colors = SEGMENT_COLORS;
     const moving = (extract: (s: Solve) => number) => calculateMovingAverage(solves.map(extract), windowSize);
 
@@ -106,10 +105,10 @@ export function buildRunningRecognitionExecution(
                 borderColor: s.color,
                 backgroundColor: s.color,
             })),
-    } as ChartData<'line'>;
+    } as LabelledChart<'line'>;
 }
 
-export function buildHistogramData(solves: Solve[], windowSize: number): ChartData<'bar'> {
+export function buildHistogramData(solves: Solve[], windowSize: number): LabelledChart<'bar', number> {
     const recentSolves = solves.map((x) => x.time).slice(-windowSize);
     const histogram = new Map<number, number>();
     for (const val of recentSolves) {
@@ -134,7 +133,7 @@ export function buildGoodBadData(
     pointsPerGraph: number,
     goodTime: number,
     badTime: number
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     const checkIfBad = (time: number) => time > badTime;
     const checkIfGood = (time: number) => time < goodTime;
     let movingPercentBad = calculateMovingPercentage(
@@ -164,7 +163,7 @@ export function buildRunningColorPercentages(
     windowSize: number,
     pointsPerGraph: number,
     isDark?: boolean
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     type ColorDef = { color: CrossColor; label: string; borderColor: string; backgroundColor: string };
     const whiteLineColor = isDark ? 'White' : 'Black';
     const colorDefs: ColorDef[] = [
@@ -203,7 +202,7 @@ export function buildStepPercentages(
     solves: Solve[],
     steps: StepName[],
     windowSize: number
-): ChartData<'doughnut'> {
+): LabelledChart<'doughnut'> {
     const totals: Partial<Record<StepName, number>> = {};
     for (const step of steps) totals[step] = 0;
     const recentSolves = solves.slice(-windowSize);
@@ -233,7 +232,7 @@ function buildCategoryPercentageChart(
     pointsPerGraph: number,
     stepName: StepName,
     categories: Array<{ predicate: (c: string) => boolean; label: string }>
-): ChartData<'line'> {
+): LabelledChart<'line'> {
     const cases = solves.map((x) => getStep(x, stepName)?.case ?? '');
     const datasets = categories.map(({ predicate, label }) => ({
         label,
@@ -243,7 +242,7 @@ function buildCategoryPercentageChart(
     return { labels, datasets };
 }
 
-export function buildOllCategoryChart(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildOllCategoryChart(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildCategoryPercentageChart(solves, windowSize, pointsPerGraph, StepName.OLL, [
         { predicate: c => Const.OllEdgeOrientationMapping.get(c) === OllEdgeOrientation.Dot,   label: `Percentage of OLL Dot Cases over last ${windowSize}` },
         { predicate: c => Const.OllEdgeOrientationMapping.get(c) === OllEdgeOrientation.Line,  label: `Percentage of OLL Line Cases over last ${windowSize}` },
@@ -252,7 +251,7 @@ export function buildOllCategoryChart(solves: Solve[], windowSize: number, point
     ]);
 }
 
-export function buildPllCategoryChart(solves: Solve[], windowSize: number, pointsPerGraph: number): ChartData<'line'> {
+export function buildPllCategoryChart(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
     return buildCategoryPercentageChart(solves, windowSize, pointsPerGraph, StepName.PLL, [
         { predicate: c => Const.PllCornerPermutationMapping.get(c) === PllCornerPermutation.Solved,   label: `Percentage of PLL Solved Corner Cases over last ${windowSize}` },
         { predicate: c => Const.PllCornerPermutationMapping.get(c) === PllCornerPermutation.Adjacent, label: `Percentage of PLL Adjacent Corner Cases over last ${windowSize}` },
@@ -263,7 +262,7 @@ export function buildPllCategoryChart(solves: Solve[], windowSize: number, point
 export function buildInspectionData(
     solves: Array<Solve & { inspectionTime: number }>,
     windowSize: number
-): ChartData<'bar'> {
+): LabelledChart<'bar'> {
     const recentSolves = solves.slice(-windowSize).sort((a, b) => a.inspectionTime - b.inspectionTime);
     const chunkedArr = splitIntoChunks(recentSolves, Const.InspectionGraphChunks);
     const labels: string[] = [];
@@ -289,7 +288,7 @@ export function shouldShowInspectionCharts(solves: Solve[]): boolean {
     return solves.some((s) => s.inspectionTime != null);
 }
 
-export function buildTypicalCompare(solves: Solve[], windowSize: number): ChartData<'bar'> {
+export function buildTypicalCompare(solves: Solve[], windowSize: number): LabelledChart<'bar'> {
     const labels = ['Cross', 'F2L', 'OLL', 'PLL'];
     const zeroes = [0, 0, 0, 0];
     if (solves.length === 0) {

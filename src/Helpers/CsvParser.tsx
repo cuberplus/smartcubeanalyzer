@@ -1,6 +1,6 @@
 import { Const } from "./Constants";
 import { GetEmptySolve } from "./CubeHelpers";
-import { Solve, CrossColor, MethodName, StepName } from "./Types";
+import { Solve, CrossColor, MethodName, Step, StepName } from "./Types";
 
 export const AUF_MOVES = new Set(['U', "U'", 'U2', "U2'", "U3", "U3'"]);
 export const ROTATIONS = new Set([
@@ -248,6 +248,15 @@ export function stripRotationsFromMoveString(movesString: string | undefined | n
     return tokens.filter((t) => !ROTATIONS.has(t.toLowerCase())).join(' ');
 }
 
+/**
+ * A Step while it is still being parsed. Cubeast supplies per-move timings and a cumulative
+ * time that are only needed to derive the real step timings, so they are stripped afterwards.
+ */
+interface ParsingStep extends Step {
+    _moveTimings?: MoveTiming[];
+    _csvCumulativeTimeSec?: number;
+}
+
 function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     // Separators inside [...] (e.g. step case "[FL,BR]->FR 30") are skipped while splitting,
     // which avoids rewriting the whole 45MB export before it can be parsed.
@@ -276,7 +285,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "session_name": (obj, value) => { obj.session = value; },
     };
 
-    const stepKeyMap: { [key: string]: (step: any, value: string) => void } = {
+    const stepKeyMap: { [key: string]: (step: ParsingStep, value: string) => void } = {
         "name": (step, value) => { step.name = value as StepName; },
         "slice_turns": (step, value) => { step.turns = Number(value); },
         "time": (step, value) => { step.time = Number(value) / 1000; },
@@ -287,13 +296,13 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "cumulative_time": (step, value) => {
             const sec = Number(value) / 1000;
             if (Number.isFinite(sec) && sec >= 0) {
-                (step as any)._csvCumulativeTimeSec = sec;
+                step._csvCumulativeTimeSec = sec;
             }
         },
         "recorded_moves": (step, value) => {
             const moveTimings = parseRecordedMoves(value);
             if (moveTimings.length > 0) {
-                (step as any)._moveTimings = moveTimings;
+                step._moveTimings = moveTimings;
             }
         },
     };
@@ -349,10 +358,10 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
 
         let prevEndTsMs: number | null = null;
         for (let i = 0; i < obj.steps.length; i++) {
-            const step = obj.steps[i];
-            const moveTimings = (step as any)._moveTimings as MoveTiming[] | undefined;
+            const step: ParsingStep = obj.steps[i];
+            const moveTimings = step._moveTimings;
             if (moveTimings && moveTimings.length > 0) {
-                const csvCumulativeSec = (step as any)._csvCumulativeTimeSec as number | undefined;
+                const csvCumulativeSec = step._csvCumulativeTimeSec;
                 const csvCrossExecFallback =
                     step.name === StepName.Cross
                         ? step.executionTime > 0
@@ -380,15 +389,15 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
                 if (step.time > 0 && step.turns > 0) {
                     step.tps = step.turns / step.time;
                 }
-                delete (step as any)._csvCumulativeTimeSec;
+                delete step._csvCumulativeTimeSec;
                 if (moveTimings.length > 0) {
                     prevEndTsMs = moveTimings[moveTimings.length - 1].timestamp;
                 }
             } else {
                 step.preAufTime = 0;
                 step.postAufTime = 0;
-                delete (step as any)._moveTimings;
-                delete (step as any)._csvCumulativeTimeSec;
+                delete step._moveTimings;
+                delete step._csvCumulativeTimeSec;
                 if (prevEndTsMs != null && step.time > 0) {
                     prevEndTsMs += step.time * 1000;
                 }

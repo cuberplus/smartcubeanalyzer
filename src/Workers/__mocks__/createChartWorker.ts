@@ -1,11 +1,13 @@
 export function createChartWorker(): Worker {
-    return {
+    const worker: Worker = {
         postMessage: () => {},
         terminate: () => {},
         onmessage: null,
         onerror: null,
+        onmessageerror: null,
         addEventListener: () => {},
         removeEventListener: () => {},
         dispatchEvent: () => false,
-    } as unknown as Worker;
+    };
+    return worker;
 }

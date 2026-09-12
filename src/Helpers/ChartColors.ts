@@ -2,7 +2,7 @@
  * Centralized, theme-aware colors for Chart.js so no chart uses the default palette.
  * Ensures readable colors in both light and dark mode.
  */
-import type { ChartData } from 'chart.js/auto';
+import type { ChartData, ChartDataset } from 'chart.js/auto';
 
 // ── Raw RGB constants ─────────────────────────────────────────────────────────
 // Every unique RGB combination used anywhere in the app lives here.
@@ -96,10 +96,15 @@ function getPalette(isDark: boolean): ChartColorPair[] {
     return isDark ? DARK_PALETTE : LIGHT_PALETTE;
 }
 
-function hasOwnColor(dataset: Record<string, unknown>): boolean {
+/**
+ * Chart.js colour fields are "scriptable": besides a colour string they may hold a
+ * gradient, a pattern, a per-point array or a callback. The palette only needs to know
+ * whether one was set at all, so the concrete dataset type is used and not re-declared.
+ */
+function hasOwnColor(dataset: ChartDataset<'line' | 'bar' | 'doughnut'>): boolean {
     return (
-        (dataset.borderColor !== undefined && dataset.borderColor !== null) ||
-        (dataset.backgroundColor !== undefined && dataset.backgroundColor !== null)
+        ('borderColor' in dataset && dataset.borderColor !== undefined && dataset.borderColor !== null) ||
+        ('backgroundColor' in dataset && dataset.backgroundColor !== undefined && dataset.backgroundColor !== null)
     );
 }
 
@@ -108,17 +113,16 @@ function hasOwnColor(dataset: Record<string, unknown>): boolean {
  * borderColor/backgroundColor. Preserves semantic colors (e.g. cross colors, OLL/PLL markers).
  * @param perPointColors - When true (e.g. for doughnut/pie), assign an array of colors, one per data point, so each segment has a different color.
  */
-export function applyPaletteToChartData<T extends 'line' | 'bar' | 'doughnut'>(
-    data: ChartData<T>,
+export function applyPaletteToChartData<T extends 'line' | 'bar' | 'doughnut', TData, TLabel>(
+    data: ChartData<T, TData, TLabel>,
     isDark: boolean,
     perPointColors?: boolean
-): ChartData<T> {
+): ChartData<T, TData, TLabel> {
     if (!data?.datasets?.length) return data;
     const palette = getPalette(isDark);
     const datasets = data.datasets.map((ds, dsIndex) => {
-        const d = ds as unknown as Record<string, unknown>;
-        if (hasOwnColor(d)) return ds;
-        const dataLength = Array.isArray(d.data) ? d.data.length : 0;
+        if (hasOwnColor(ds as ChartDataset<'line' | 'bar' | 'doughnut'>)) return ds;
+        const dataLength = Array.isArray(ds.data) ? ds.data.length : 0;
         if (perPointColors && dataLength > 0) {
             const backgroundColors = Array.from(
                 { length: dataLength },
@@ -141,5 +145,5 @@ export function applyPaletteToChartData<T extends 'line' | 'bar' | 'doughnut'>(
             backgroundColor: color.backgroundColor,
         };
     });
-    return { ...data, datasets } as ChartData<T>;
+    return { ...data, datasets } as ChartData<T, TData, TLabel>;
 }

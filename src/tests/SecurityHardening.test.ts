@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ChartPanel } from '../Components/ChartPanel';
 import { FastestSolve } from '../Helpers/Types';
+import type { CellClickArgs } from 'react-data-grid';
 
 /**
  * Guards the site's non-dependency security properties. These are cheap to
@@ -19,16 +20,16 @@ function solve(overrides: Partial<FastestSolve>): FastestSolve {
 }
 
 function openSolve(row: FastestSolve): { url: string; target?: string; features?: string } {
-    const calls: any[] = [];
+    const calls: Parameters<typeof window.open>[] = [];
     const original = window.open;
-    (window as any).open = (...args: any[]) => { calls.push(args); return null; };
+    window.open = (...args: Parameters<typeof window.open>) => { calls.push(args); return null; };
     try {
-        ChartPanel.prototype.openSolveSource.call({}, { row } as any);
+        ChartPanel.prototype.openSolveSource.call({} as ChartPanel, { row } as CellClickArgs<FastestSolve>);
     } finally {
-        (window as any).open = original;
+        window.open = original;
     }
     expect(calls).toHaveLength(1);
-    return { url: calls[0][0], target: calls[0][1], features: calls[0][2] };
+    return { url: String(calls[0][0]), target: calls[0][1], features: calls[0][2] };
 }
 
 describe('external solve links', () => {

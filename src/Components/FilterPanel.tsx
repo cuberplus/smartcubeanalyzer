@@ -4,13 +4,16 @@ import moment from "moment";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
 import { MultiSelect } from "react-multi-select-component";
-import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, MethodName, Option, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
+import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, KeysOfType, MethodName, Option, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
 import { ChartPanel } from "./ChartPanel";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateBenchmarkTimes, CalculateWindowSize } from "../Helpers/CubeHelpers";
 import ReactSwitch from "react-switch";
+
+/** react-bootstrap's FormControl accepts input, select and textarea events, so borrow its own handler type. */
+type FormControlChangeHandler = NonNullable<React.ComponentProps<typeof FormControl>['onChange']>;
 
 function defaultDateRange(): Pick<Filters, 'startDate' | 'endDate'> {
     return {
@@ -380,42 +383,45 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     /** Multi-selects all behave the same: raw options in state, their values in filters. */
-    setMulti(filterKey: keyof Filters, stateKey: keyof FilterPanelState, selectedList: any[]) {
-        this.setState({
-            filters: { ...this.state.filters, [filterKey]: selectedList.map(x => x.value) },
-            [stateKey]: selectedList
-        } as any);
+    setMulti(filterKey: keyof Filters, stateKey: keyof FilterPanelState, selectedList: Option[]) {
+        this.setState(prev => {
+            const filters: Filters = { ...prev.filters, [filterKey]: selectedList.map(x => x.value) };
+            return { ...prev, filters, [stateKey]: selectedList };
+        });
     }
 
-    setFilter(filterKey: keyof Filters, value: any) {
-        this.setState({ filters: { ...this.state.filters, [filterKey]: value } } as any);
+    setFilter<K extends keyof Filters>(filterKey: K, value: Filters[K]) {
+        this.setState(prev => {
+            const filters: Filters = { ...prev.filters, [filterKey]: value };
+            return { ...prev, filters };
+        });
     }
 
-    setNumberFilter(filterKey: keyof Filters, event: React.ChangeEvent<HTMLInputElement>) {
+    setNumberFilter(filterKey: KeysOfType<Filters, number>, event: React.ChangeEvent<HTMLInputElement>) {
         this.setFilter(filterKey, parseInt(event.target.value));
     }
 
-    setField(stateKey: keyof FilterPanelState, value: any) {
-        this.setState({ [stateKey]: value } as any);
+    setField<K extends keyof FilterPanelState>(stateKey: K, value: FilterPanelState[K]) {
+        this.setState(prev => ({ ...prev, [stateKey]: value }));
     }
 
-    setNumberField(stateKey: keyof FilterPanelState, event: React.ChangeEvent<HTMLInputElement>) {
+    setNumberField(stateKey: KeysOfType<FilterPanelState, number>, event: React.ChangeEvent<HTMLInputElement>) {
         this.setField(stateKey, parseInt(event.target.value));
     }
 
-    crossColorsChanged(selectedList: any[]) { this.setMulti('crossColors', 'chosenColors', selectedList); }
+    crossColorsChanged(selectedList: Option[]) { this.setMulti('crossColors', 'chosenColors', selectedList); }
 
-    chosenSessionsChanged(selectedList: any[]) { this.setMulti('sessions', 'chosenSessions', selectedList); }
+    chosenSessionsChanged(selectedList: Option[]) { this.setMulti('sessions', 'chosenSessions', selectedList); }
 
-    sourcesChanged(selectedList: any[]) { this.setMulti('sources', 'chosenSources', selectedList); }
+    sourcesChanged(selectedList: Option[]) { this.setMulti('sources', 'chosenSources', selectedList); }
 
-    pllChanged(selectedList: any[]) { this.setMulti('pllCases', 'chosenPLLs', selectedList); }
+    pllChanged(selectedList: Option[]) { this.setMulti('pllCases', 'chosenPLLs', selectedList); }
 
-    ollChanged(selectedList: any[]) { this.setMulti('ollCases', 'chosenOLLs', selectedList); }
+    ollChanged(selectedList: Option[]) { this.setMulti('ollCases', 'chosenOLLs', selectedList); }
 
-    setCleanliness(selectedList: any[]) { this.setMulti('solveCleanliness', 'solveCleanliness', selectedList); }
+    setCleanliness(selectedList: Option[]) { this.setMulti('solveCleanliness', 'solveCleanliness', selectedList); }
 
-    setLuckiness(selectedList: any[]) { this.setMulti('solveLuckiness', 'solveLuckiness', selectedList); }
+    setLuckiness(selectedList: Option[]) { this.setMulti('solveLuckiness', 'solveLuckiness', selectedList); }
 
     windowSizeChanged(newWindowSize: number) {
         this.setState({
@@ -423,7 +429,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         })
     }
 
-    chosenStepsChanged(selectedList: any[]) {
+    chosenStepsChanged(selectedList: Option<StepName>[]) {
         let selectedSteps: StepName[] = selectedList.map(x => x.value);
         let allSteps = Const.MethodSteps[this.state.filters.method];
 
@@ -439,7 +445,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         })
     }
 
-    static toOptions<T extends string>(values: readonly T[]): Option[] {
+    static toOptions<T extends string>(values: readonly T[]): Option<T>[] {
         return values.map(x => ({ label: x, value: x }));
     }
 
@@ -447,7 +453,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         return FilterPanel.toOptions(Const.MethodSteps[method]);
     }
 
-    getMethodOptions() {
+    getMethodOptions(): Option<MethodName>[] {
         return FilterPanel.toOptions(Object.values(MethodName));
     }
 
@@ -455,10 +461,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         return CalculateAllSessionOptions(this.props.solves);
     }
 
-    methodChanged(newValue: Option | null) {
-        let newMethod: MethodName = newValue!.value;
+    methodChanged(newValue: Option<MethodName> | null) {
+        if (!newValue) return;
+        const newMethod = newValue.value;
         this.setState({
-            method: newValue!,
+            method: newValue,
             filters: { ...this.state.filters, method: newMethod, steps: Const.MethodSteps[newMethod] },
             chosenSteps: FilterPanel.getStepOptionsForMethod(newMethod)
         });
@@ -531,7 +538,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
 
     setTestAlert(showTestAlert: boolean) { this.setField('showTestAlert', showTestAlert); }
 
-    tabSelect(key: any) { this.setField('tabKey', key); }
+    tabSelect(key: number) { this.setField('tabKey', key); }
 
     showFilters() { this.setField('showFilters', true); }
 
@@ -614,10 +621,10 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     /** A multi-select filter card; every one of these shares the same wiring. */
-    multiFilter(
-        options: { label: string; value: string }[],
-        value: { label: string; value: string }[],
-        onChange: (v: { label: string; value: string }[]) => void,
+    multiFilter<T extends string>(
+        options: Option<T>[],
+        value: Option<T>[],
+        onChange: (v: Option<T>[]) => void,
         title: string,
         tooltip: string
     ): JSX.Element {
@@ -631,8 +638,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     /** A filter card holding a low/high pair of numeric inputs. */
     rangeFilter(
         max: string,
-        low: { id: string; value: number; onChange: (e: any) => void },
-        high: { id: string; value: number; onChange: (e: any) => void },
+        low: { id: string; value: number; onChange: FormControlChangeHandler },
+        high: { id: string; value: number; onChange: FormControlChangeHandler },
         title: string,
         tooltip: string
     ): JSX.Element {
@@ -654,7 +661,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         auto: { id: string; checked: boolean; onChange: (v: boolean) => void },
         min: string,
         max: string,
-        fields: { id: string; value: number; onChange: (e: any) => void }[],
+        fields: { id: string; value: number; onChange: FormControlChangeHandler }[],
         title: string,
         tooltip: string
     ): JSX.Element {

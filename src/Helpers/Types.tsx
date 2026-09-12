@@ -1,6 +1,15 @@
 // Local Option type, matching react-multi-select-component's interface, but without
 // pulling in React so this file can be safely imported by Web Workers.
-export interface Option { value: any; label: string; key?: string; disabled?: boolean; }
+// The chart.js import is type-only, so it is erased before the worker bundle is built.
+import type { ChartData, DefaultDataPoint } from 'chart.js/auto';
+
+/** Every chart in this app labels its axis with strings, so TLabel is pinned rather than left as Chart.js' default. */
+export type LabelledChart<T extends 'line' | 'bar' | 'doughnut', TLabel = string> = ChartData<T, DefaultDataPoint<T>, TLabel>;
+
+export interface Option<TValue extends string = string> { value: TValue; label: string; key?: string; disabled?: boolean; }
+
+/** The subset of T's keys whose values are assignable to V. */
+export type KeysOfType<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
 
 export enum MethodName {
     CFOP = 'CFOP',
@@ -136,7 +145,7 @@ export function getStep(solve: Solve, name: StepName): Step | undefined {
 
 export interface FilterPanelProps {
     solves: Solve[],
-    suggestedMethod?: Option,
+    suggestedMethod?: Option<MethodName>,
     suggestedSessions?: Option[],
     suggestedWindowSize?: number,
     showTestAlert?: boolean,
@@ -154,7 +163,7 @@ export interface FilterPanelState {
     filters: Filters,
 
     // Objects required for filter objects to work
-    chosenSteps: Option[],
+    chosenSteps: Option<StepName>[],
     chosenColors: Option[],
     chosenPLLs: Option[],
     chosenOLLs: Option[],
@@ -171,7 +180,7 @@ export interface FilterPanelState {
     showTestAlert: boolean,
     badTime: number,
     goodTime: number,
-    method: Option,
+    method: Option<MethodName>,
     useLogScale: boolean,
     use4SegmentTiming: boolean
 }
@@ -183,7 +192,7 @@ export interface FileInputProps {
 export interface FileInputState {
     solves: Solve[],
     showHelpModal: boolean,
-    suggestedMethod?: Option,
+    suggestedMethod?: Option<MethodName>,
     suggestedSessions?: Option[],
     suggestedWindowSize?: number,
     showTestAlert?: boolean,
@@ -204,8 +213,41 @@ export interface ChartPanelProps {
 }
 
 export interface ChartPanelState {
-    chartData: Record<string, unknown> | null;
+    chartData: ChartDataBundle | null;
     isComputing: boolean;
+}
+
+/** A record chart plots one point per personal best, so its x axis is a date rather than a category. */
+export type DatedPoint = { x: Date; y: number };
+
+/**
+ * Everything the chart worker computes for a single render, keyed by chart.
+ * Optional entries are only produced when the relevant steps are selected.
+ */
+export interface ChartDataBundle {
+    runningAverage: LabelledChart<'line'>;
+    runningStdDev: LabelledChart<'line'>;
+    runningTps: LabelledChart<'line'>;
+    runningInspection: LabelledChart<'line'> | null;
+    runningTurns: LabelledChart<'line'>;
+    runningRecognitionExecution: LabelledChart<'line'>;
+    runningEfficiency: LabelledChart<'line'>;
+    histogram: LabelledChart<'bar', number>;
+    stepAverages: LabelledChart<'line'>;
+    runningColorPercentages: LabelledChart<'line'>;
+    inspection: LabelledChart<'bar'> | null;
+    dailyRecord: LabelledChart<'line'>;
+    streakRows: StreakRow[];
+    recordRows: RecordRow[];
+    goodBad: LabelledChart<'line'>;
+    recordHistory: ChartData<'line', DatedPoint[], string>;
+    stepPercentages: LabelledChart<'doughnut'>;
+    typicalCompare: LabelledChart<'bar'>;
+    bestSolvesData: FastestSolve[];
+    ollCategory?: LabelledChart<'line'>;
+    pllCategory?: LabelledChart<'line'>;
+    caseData?: LabelledChart<'bar'>;
+    algoPracticeRows?: AlgoPracticeRow[];
 }
 
 export interface StreakRow {
@@ -232,7 +274,7 @@ export interface AlgoPracticeRow {
 
 export interface HelpPanelProps {
     showHelpPanel: boolean,
-    onCloseHandler: any
+    onCloseHandler: () => void
 }
 
 export interface HelpPanelState {

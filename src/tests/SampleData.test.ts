@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, test } from '@jest/globals';
 import { GetDemoData } from '../Helpers/SampleData';
 
-const globalAny = globalThis as any;
+/** Only the globals this suite fakes. globalThis is structurally assignable to it, so no cast is needed. */
+interface TestGlobals {
+    window?: { location: { origin: string; pathname: string } };
+    fetch?: (url: string) => Promise<{ ok: boolean; text: () => Promise<string> }>;
+}
+const globalAny: TestGlobals = globalThis;
 const env = process.env as Record<string, string | undefined>;
 const originalPublicUrl = env.PUBLIC_URL;
 const originalWindow = globalAny.window;

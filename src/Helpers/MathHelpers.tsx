@@ -155,7 +155,7 @@ export function calculateMovingAverageChopped(data: number[], window: number, ch
     return result;
 }
 
-export function calculateMovingPercentage(data: any[], window: number, criteria: (solve: any) => boolean): number[] {
+export function calculateMovingPercentage<T>(data: T[], window: number, criteria: (item: T) => boolean): number[] {
     let result: number[] = [];
     if (data.length < window) {
         return result;
@@ -206,13 +206,13 @@ export function calculateMovingStdDev(data: number[], window: number) {
     return result;
 }
 
-export function reduceDataset(values: any[], pointsPerGraph: number) {
+export function reduceDataset<T>(values: T[], pointsPerGraph: number): T[] {
     let targetPoints = pointsPerGraph;
     if (values.length <= targetPoints) {
         return values;
     }
 
-    let reducedValues = []
+    let reducedValues: T[] = []
     let addedLastElement: boolean = false;
     let delta = Math.floor(values.length / targetPoints);
     for (let i = 0; i < values.length; i = i + delta) {
@@ -237,7 +237,7 @@ export function makeLabels(length: number, pointsPerGraph: number): string[] {
     );
 }
 
-export function splitIntoChunks(values: any[], chunks: number) {
+export function splitIntoChunks<T>(values: T[], chunks: number): T[][] {
     let size: number = Math.ceil(values.length / chunks);
     return Array.from({ length: chunks }, (v, i) =>
         values.slice(i * size, i * size + size)

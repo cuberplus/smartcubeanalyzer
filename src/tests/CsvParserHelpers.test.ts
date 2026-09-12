@@ -71,7 +71,7 @@ describe('parseRecordedMoves', () => {
     test('returns an empty list for empty or whitespace input', () => {
         expect(parseRecordedMoves('')).toEqual([]);
         expect(parseRecordedMoves('   ')).toEqual([]);
-        expect(parseRecordedMoves(undefined as any)).toEqual([]);
+        expect(parseRecordedMoves(undefined!)).toEqual([]);
     });
 
     test('parses each move and its timestamp', () => {

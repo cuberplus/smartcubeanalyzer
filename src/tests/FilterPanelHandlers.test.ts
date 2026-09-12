@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import { describe, expect, test } from '@jest/globals';
 import { FilterPanel } from '../Components/FilterPanel';
-import { CrossColor, MethodName, StepName } from '../Helpers/Types';
+import { CrossColor, FilterPanelProps, FilterPanelState, Filters, MethodName, Option, StepName } from '../Helpers/Types';
 
 /**
  * Characterization tests for FilterPanel's state handlers. The panel's pure
@@ -9,31 +9,33 @@ import { CrossColor, MethodName, StepName } from '../Helpers/Types';
  * can be collapsed into generic helpers without changing what the UI does.
  */
 
-type AnyPanel = any;
+type StateUpdate = Partial<FilterPanelState> | ((prev: FilterPanelState) => Partial<FilterPanelState>);
 
-function newPanel(props: any = { solves: [] }): AnyPanel {
-    const panel: AnyPanel = new (FilterPanel as any)(props);
-    panel.setState = (update: any) => {
+/** A real panel with React's async setState swapped for a synchronous one, so handlers run without a DOM. */
+function newPanel(props: FilterPanelProps = { solves: [] }): FilterPanel {
+    const panel = new FilterPanel(props);
+    const setState = (update: StateUpdate) => {
         const patch = typeof update === 'function' ? update(panel.state) : update;
-        panel.state = { ...panel.state, ...patch };
+        Object.assign(panel, { state: { ...panel.state, ...patch } });
     };
+    Object.assign(panel, { setState });
     return panel;
 }
 
 const initialFilters = () => newPanel().state.filters;
 
 /** Runs a handler against a fake component and returns the resulting state. */
-function runHandler(handler: (panel: AnyPanel) => void, seed: Record<string, any> = {}): any {
+function runHandler(handler: (panel: FilterPanel) => void, seed: Partial<FilterPanelState> = {}): FilterPanelState {
     const panel = newPanel();
-    panel.state = { ...panel.state, ...seed };
+    Object.assign(panel, { state: { ...panel.state, ...seed } });
     handler(panel);
     return panel.state;
 }
 
-const opts = (...values: string[]) => values.map(v => ({ label: v, value: v }));
+const opts = <T extends string>(...values: T[]): Option<T>[] => values.map(v => ({ label: v, value: v }));
 
 describe('FilterPanel multi-select handlers', () => {
-    const cases: Array<[string, (p: AnyPanel, list: any[]) => void, string, string, string[]]> = [
+    const cases: Array<[string, (p: FilterPanel, list: Option[]) => void, keyof Filters, keyof FilterPanelState, string[]]> = [
         ['cross colors', (p, l) => p.crossColorsChanged(l), 'crossColors', 'chosenColors', [CrossColor.White, CrossColor.Red]],
         ['sessions', (p, l) => p.chosenSessionsChanged(l), 'sessions', 'chosenSessions', ['morning', 'evening']],
         ['sources', (p, l) => p.sourcesChanged(l), 'sources', 'chosenSources', ['cubeast']],
@@ -54,7 +56,7 @@ describe('FilterPanel multi-select handlers', () => {
     test.each(cases)('%s leaves the other filters untouched', (_name, call, filterKey) => {
         const before = initialFilters();
         const state = runHandler(p => call(p, opts('x')));
-        for (const key of Object.keys(before)) {
+        for (const key of Object.keys(before) as (keyof Filters)[]) {
             if (key !== filterKey) expect(state.filters[key]).toEqual(before[key]);
         }
     });
@@ -66,9 +68,9 @@ describe('FilterPanel multi-select handlers', () => {
 });
 
 describe('FilterPanel numeric handlers', () => {
-    const evt = (value: string) => ({ target: { value } }) as any;
+    const evt = (value: string) => ({ target: { value } }) as React.ChangeEvent<HTMLInputElement>;
 
-    const filterCases: Array<[string, (p: AnyPanel, e: any) => void, string]> = [
+    const filterCases: Array<[string, (p: FilterPanel, e: React.ChangeEvent<HTMLInputElement>) => void, keyof Filters]> = [
         ['slowest solve', (p, e) => p.setSlowestSolve(e), 'slowestTime'],
         ['fastest solve', (p, e) => p.setFastestSolve(e), 'fastestTime'],
         ['lowest inspection', (p, e) => p.setLowestInspection(e), 'lowestInspection'],
@@ -84,7 +86,7 @@ describe('FilterPanel numeric handlers', () => {
         expect(runHandler(p => call(p, evt(''))).filters[key]).toBeNaN();
     });
 
-    const stateCases: Array<[string, (p: AnyPanel, e: any) => void, string]> = [
+    const stateCases: Array<[string, (p: FilterPanel, e: React.ChangeEvent<HTMLInputElement>) => void, keyof FilterPanelState]> = [
         ['bad time', (p, e) => p.setBadTime(e), 'badTime'],
         ['good time', (p, e) => p.setGoodTime(e), 'goodTime'],
         ['points per graph', (p, e) => p.setPointsPerGraph(e), 'pointsPerGraph'],
@@ -109,7 +111,7 @@ describe('FilterPanel date and toggle handlers', () => {
         expect(runHandler(p => p.setEndDate(end)).filters.endDate).toBe(end);
     });
 
-    const toggles: Array<[string, (p: AnyPanel, v: boolean) => void, string]> = [
+    const toggles: Array<[string, (p: FilterPanel, v: boolean) => void, keyof FilterPanelState]> = [
         ['log scale', (p, v) => p.setUseLogScale(v), 'useLogScale'],
         ['4 segment timing', (p, v) => p.setUse4SegmentTiming(v), 'use4SegmentTiming'],
         ['test alert', (p, v) => p.setTestAlert(v), 'showTestAlert'],

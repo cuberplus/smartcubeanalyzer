@@ -32,12 +32,12 @@ jest.mock('react-chartjs-2', () => ({
 // computation rather than an unresolved async boundary.
 jest.mock('../Workers/createChartWorker', () => ({
     createChartWorker: () => {
-        const { computeAllChartData: compute } = require('../Workers/chartWorker');
-        const worker: any = {
+        const { computeAllChartData: compute } = require('../Workers/chartWorker') as typeof import('../Workers/chartWorker');
+        const worker: { onmessage: ((e: MessageEvent) => void) | null; postMessage(input: WorkerInput): void; terminate(): void } = {
             onmessage: null,
-            postMessage(input: any) {
+            postMessage(input: WorkerInput) {
                 const chartData = compute(input);
-                worker.onmessage?.({ data: { requestId: input.requestId, chartData } });
+                worker.onmessage?.(new MessageEvent('message', { data: { requestId: input.requestId, chartData } }));
             },
             terminate() { },
         };
@@ -51,6 +51,7 @@ import { FilterPanel } from '../Components/FilterPanel';
 import { ChartPanel } from '../Components/ChartPanel';
 import { Const } from '../Helpers/Constants';
 import {
+    ChartDataBundle,
     CrossColor,
     Filters,
     MethodName,
@@ -198,18 +199,17 @@ describe('dev stats dataset', () => {
 
 /** jsdom has no layout engine; react-data-grid still expects ResizeObserver and CSS.supports. */
 function installDomStubs(): void {
-    const g = globalThis as any;
-    if (!g.ResizeObserver) {
-        g.ResizeObserver = class {
-            observe() { }
-            unobserve() { }
-            disconnect() { }
-        };
+    if (!('ResizeObserver' in globalThis)) {
+        Object.assign(globalThis, {
+            ResizeObserver: class {
+                observe() { }
+                unobserve() { }
+                disconnect() { }
+            },
+        });
     }
-    if (!g.CSS) {
-        g.CSS = { supports: () => false, escape: (value: string) => value };
-    } else if (typeof g.CSS.supports !== 'function') {
-        g.CSS.supports = () => false;
+    if (!('CSS' in globalThis) || typeof globalThis.CSS?.supports !== 'function') {
+        Object.assign(globalThis, { CSS: { ...globalThis.CSS, supports: () => false, escape: (value: string) => value } });
     }
 }
 
@@ -284,7 +284,7 @@ describe('full site load time', () => {
             cleanup();
 
             // Every chart the panel renders must have data by the time we are done.
-            const required = [
+            const required: (keyof ChartDataBundle)[] = [
                 'runningAverage', 'runningStdDev', 'runningTps', 'runningTurns',
                 'runningRecognitionExecution', 'runningEfficiency', 'histogram', 'stepAverages',
                 'runningColorPercentages', 'dailyRecord', 'streakRows', 'recordRows', 'goodBad',
@@ -322,7 +322,8 @@ describe('full site load time', () => {
 
 // ── Individual charts ─────────────────────────────────────────────────────────
 
-type ChartCase = { name: string; build: () => unknown };
+/** The built chart is discarded; only the time it took to build it matters. */
+type ChartCase = { name: string; build: () => void };
 
 function chartCases(): ChartCase[] {
     return [

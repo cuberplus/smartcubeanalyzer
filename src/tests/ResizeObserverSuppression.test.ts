@@ -36,7 +36,7 @@ function dispatchErrorAfterThemeInit(message: string): { reachedLaterListener: b
     localStorage.clear();
     // jsdom has no media query support; theme-init.js falls back to it when no theme is stored.
     if (!window.matchMedia) {
-        (window as any).matchMedia = () => ({ matches: false, addEventListener() { }, removeEventListener() { } });
+        Object.assign(window, { matchMedia: () => ({ matches: false, addEventListener() { }, removeEventListener() { } }) });
     }
     // eslint-disable-next-line no-new-func
     new Function(themeInit).call(window);
