@@ -137,6 +137,14 @@ h6 {
   padding: 0;
 }
 
+/* Demo data picker. Entries wrap (.text-wrap), so cap the menu rather than let it
+   stretch past the viewport and scroll the page instead of itself. */
+.demo-data-menu {
+  max-height: 60vh;
+  max-width: min(22rem, 90vw);
+  overflow-y: auto;
+}
+
 /* Activity */
 
 /* News & Updates */

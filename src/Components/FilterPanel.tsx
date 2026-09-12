@@ -8,7 +8,7 @@ import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, KeysO
 import { ChartPanel } from "./ChartPanel";
 import { GroupedMultiSelect } from "./GroupedMultiSelect";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
-import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
+import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateBenchmarkTimes, CalculateWindowSize } from "../Helpers/CubeHelpers";
 import { APP_VERSION } from "../Helpers/Version";
@@ -107,10 +107,12 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         if (filters.sessions.length > 0 && (solve.session !== '' && solve.session != null) && filters.sessions.indexOf(solve.session) < 0) return false;
 
         // TODO: check case logic properly
+        // Only filter by case when the export reported one. Free-tier exports leave
+        // step_N_case blank, and filtering on "" would reject the whole export.
         const pllStep = getStep(solve, StepName.PLL);
-        if (solve.method == MethodName.CFOP && pllStep?.case !== undefined && filters.pllCases.indexOf(pllStep.case) < 0) return false;
+        if (solve.method == MethodName.CFOP && pllStep?.case && filters.pllCases.indexOf(pllStep.case) < 0) return false;
         const ollStep = getStep(solve, StepName.OLL);
-        if (solve.method == MethodName.CFOP && ollStep?.case !== undefined && filters.ollCases.indexOf(ollStep.case) < 0) return false;
+        if (solve.method == MethodName.CFOP && ollStep?.case && filters.ollCases.indexOf(ollStep.case) < 0) return false;
 
         // If total time or any step is 3 standard deviations away, remove it
         if (filters.solveCleanliness.indexOf(solve.isMistake ? SolveCleanliness.Mistake : SolveCleanliness.Clean) < 0) return false;
@@ -179,12 +181,17 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             }
 
             const turns = stepTurns > 0 ? stepTurns : solve.turns;
+            // An export can name a method's steps without timing them (Acubemy records
+            // Roux and ZZ as one block), so those solves fall back to their own total.
+            // Solves that do have step timings keep theirs, so a skip still reads zero.
+            const hasStepTimings = solve.steps.some(step => step.time > 0);
+            const time = stepTime > 0 || hasStepTimings ? stepTime : solve.time;
             const tps = stepTime > 0 && turns > 0 ? turns / stepTime : solve.tps;
 
             // Every other field is carried over untouched.
             return {
                 ...solve,
-                time: stepTime,
+                time,
                 tps,
                 recognitionTime: recognition,
                 executionTime: execution,

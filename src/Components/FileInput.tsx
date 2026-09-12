@@ -2,8 +2,8 @@ import React from "react";
 import { FileInputProps, FileInputState, MethodName, Solve, StepName } from "../Helpers/Types";
 import { parseCsv } from "../Helpers/CsvParser";
 import { FilterPanel } from "./FilterPanel";
-import { GetDemoData } from "../Helpers/SampleData"
-import { Button, Form, FormControl, Card, Row, Col, ButtonGroup, Navbar, Container } from "react-bootstrap";
+import { GetDemoData, DEMO_DATASETS } from "../Helpers/SampleData"
+import { Button, Form, FormControl, Card, Row, Col, ButtonGroup, Navbar, Container, Dropdown } from "react-bootstrap";
 import { HelpPanel } from "./HelpPanel";
 import { CalculateMostUsedMethod, CalculateWindowSize, CalculateAllSessionOptions } from "../Helpers/CubeHelpers";
 import { Option } from "react-multi-select-component"
@@ -80,10 +80,10 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
             });
     };
 
-    showTestData() {
+    showTestData(file?: string) {
         this.setState({ isParsing: true });
 
-        GetDemoData()
+        GetDemoData(file)
             .then((csv) => {
                 const solveList: Solve[] = parseCsv(csv, ',');
                 const method = CalculateMostUsedMethod(solveList);
@@ -183,9 +183,22 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                                     <Button className="col-8" variant="success" disabled={this.state.isParsing} onClick={() => { this.showFileData(); }}>
                                         {this.state.isParsing ? "Parsing..." : "Display My Stats!"}
                                     </Button>
-                                    <Button className="col-4" disabled={this.state.isParsing} onClick={() => { this.showTestData(); }}>
-                                        {this.state.isParsing ? "Parsing..." : "Display Test Stats!"}
-                                    </Button>
+                                    <Dropdown as={ButtonGroup} className="col-4">
+                                        <Button disabled={this.state.isParsing} onClick={() => { this.showTestData(); }}>
+                                            {this.state.isParsing ? "Parsing..." : "Use Demo Data"}
+                                        </Button>
+                                        <Dropdown.Toggle split id="demo-data" disabled={this.state.isParsing} aria-label="Choose demo data" />
+                                        {/* Positioned against the viewport (strategy: fixed) so it escapes the
+                                            `overflow-x: hidden` on html/body, which otherwise clips its bottom. */}
+                                        <Dropdown.Menu align="end" className="demo-data-menu" renderOnMount popperConfig={{ strategy: 'fixed' }}>
+                                            {DEMO_DATASETS.map(dataset => (
+                                                <Dropdown.Item key={dataset.id} className="text-wrap" onClick={() => { this.showTestData(dataset.file); }}>
+                                                    {dataset.name}
+                                                    <span className="d-block small text-muted">{dataset.description}</span>
+                                                </Dropdown.Item>
+                                            ))}
+                                        </Dropdown.Menu>
+                                    </Dropdown>
                                 </ButtonGroup>
                             </Card>
                         </Col>

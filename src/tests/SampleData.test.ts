@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from '@jest/globals';
-import { GetDemoData } from '../Helpers/SampleData';
+import { GetDemoData, DEFAULT_DEMO_FILE } from '../Helpers/SampleData';
 
 /** Only the globals this suite fakes. globalThis is structurally assignable to it, so no cast is needed. */
 interface TestGlobals {
@@ -84,5 +84,19 @@ describe('GetDemoData', () => {
         env.PUBLIC_URL = '/app';
         mockFetch({ ok: false });
         await expect(GetDemoData()).rejects.toThrow('Failed to load demo data');
+    });
+
+    test('fetches the dataset the picker asked for', async () => {
+        env.PUBLIC_URL = '/smartcubeanalyzer';
+        const calls = mockFetch({ ok: true, text: 'a,b' });
+        await GetDemoData('demo/roux-small.csv');
+        expect(calls[0]).toBe('/smartcubeanalyzer/demo/roux-small.csv');
+    });
+
+    test('falls back to the original demo data when no dataset is named', async () => {
+        env.PUBLIC_URL = '/smartcubeanalyzer';
+        const calls = mockFetch({ ok: true, text: 'a,b' });
+        await GetDemoData();
+        expect(calls[0]).toBe(`/smartcubeanalyzer/${DEFAULT_DEMO_FILE}`);
     });
 });

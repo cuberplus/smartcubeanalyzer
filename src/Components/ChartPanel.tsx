@@ -273,8 +273,11 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
 
         const hasOll = p.steps.includes(StepName.OLL);
         const hasPll = p.steps.includes(StepName.PLL);
+        // Some exports record a method as one block (Acubemy does for Roux and ZZ), so
+        // steps exist by name with zero times. Those charts would be flat zeroes.
+        const hasStepTimings = p.solves.some(s => s.steps.some(step => step.time > 0));
 
-        if (p.steps.length === 1 && (p.steps[0] === StepName.OLL || p.steps[0] === StepName.PLL) && c.caseData) {
+        if (hasStepTimings && p.steps.length === 1 && (p.steps[0] === StepName.OLL || p.steps[0] === StepName.PLL) && c.caseData) {
             charts.push(buildChartHtml(
                 <Bar data={c.caseData} options={withCaseTooltip(createOptions(ChartType.Bar, "Case", "Time (s)", p.useLogScale, true, false, isDark))} />,
                 "Average Recognition Time and Execution Time per Case",
@@ -288,7 +291,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         }
 
         charts.push(buildChartHtml(<Line data={c.runningAverage} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time", "This chart shows your running average"));
-        charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
+        if (hasStepTimings) charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
         charts.push(buildChartHtml(<Bar data={c.histogram} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale, true, false, isDark)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
         charts.push(buildChartHtml(<Line data={c.runningTps} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
         charts.push(buildChartHtml(<Line data={c.runningTurns} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale, true, false, isDark)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
@@ -303,7 +306,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         if (c.inspection != null) {
             charts.push(buildChartHtml(<Bar data={c.inspection} options={createOptions(ChartType.Bar, "Inspection Time (s)", "Solve Time (s)", p.useLogScale, true, false, isDark)} />, "Average solve time by inspection time", "This chart shows your average, grouped up by how much inspection time (For example, the left bar is the 1/7 of your solves with the lowest inspection time, and the right bar is the 1/7 of your solves with the most inspection time)"));
         }
-        charts.push(buildChartHtml(<Line data={c.stepAverages} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
+        if (hasStepTimings) charts.push(buildChartHtml(<Line data={c.stepAverages} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time by Step", "This chart shows what percentage of your solve each step takes"));
         if (c.runningInspection != null) {
             charts.push(buildChartHtml(<Line data={c.runningInspection} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
         }
@@ -319,11 +322,11 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             charts.push(buildChartHtml(<Line data={c.pllCategory} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "PLL Corner Permutation", "This chart shows your percentage of PLL cases by corner permutation"));
         }
 
-        if (p.methodName === MethodName.CFOP && p.steps.length === Const.MethodSteps[MethodName.CFOP].length) {
+        if (hasStepTimings && p.methodName === MethodName.CFOP && p.steps.length === Const.MethodSteps[MethodName.CFOP].length) {
             charts.push(buildChartHtml(<Bar data={c.typicalCompare} options={createOptions(ChartType.Bar, "Step Name", "Time (s)", p.useLogScale, false, false, isDark)} />, "Time Per Step, Compared to Typical Solver", "This chart shows how long each step takes, compared to a typical solver at your average. The 'typical' data is calculated based on a tool provided from Felix Zemdegs's CubeSkills blog"));
         }
 
-        if (p.steps.length >= 2) {
+        if (hasStepTimings && p.steps.length >= 2) {
             charts.push(buildChartHtml(<Doughnut data={c.stepPercentages} options={createOptions(ChartType.Doughnut, "", "", p.useLogScale, true, false, isDark)} />, "Percentage of the Solve Each Step Took", "This chart shows what percentage of your solve each step takes"));
         }
 
