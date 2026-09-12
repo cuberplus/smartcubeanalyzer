@@ -308,6 +308,46 @@ h6 {
   background: #f8f9fa;
 }
 
+/*
+ * Case names in the Algorithm Practice grid link out to SpeedCubeDB. The anchor
+ * is stretched to fill its cell, and back out over the cell's 8px padding, so
+ * the whole box is the click target rather than just the few characters of text.
+ */
+.algo-case-link {
+  display: flex;
+  align-items: center;
+  block-size: 100%;
+  margin-inline: -8px;
+  padding-inline: 8px;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/*
+ * Every cell of the fastest-solves grid opens that solve, so the same affordance
+ * is applied there. The underline sits on the text rather than the cell, which
+ * is why it is set on the cell's content box and not the row.
+ */
+.clickable-grid .rdg-row .rdg-cell {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.algo-case-link:hover,
+.algo-case-link:focus-visible,
+.clickable-grid .rdg-row .rdg-cell:hover {
+  color: #0d6efd;
+  text-decoration: underline;
+}
+
+[data-bs-theme="dark"] .algo-case-link:hover,
+[data-bs-theme="dark"] .algo-case-link:focus-visible,
+[data-bs-theme="dark"] .clickable-grid .rdg-row .rdg-cell:hover {
+  color: #6ea8fe;
+}
+
 [data-bs-theme="dark"] body {
   background: #0d1117;
   color: #e6edf3;

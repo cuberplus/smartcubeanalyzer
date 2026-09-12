@@ -1,5 +1,6 @@
 import React from "react";
 import {
+    AlgoPracticeRow,
     ChartPanelProps,
     ChartPanelState,
     ChartType,
@@ -9,12 +10,12 @@ import {
     StepName,
 } from "../Helpers/Types";
 import { Chart as ChartJS, CategoryScale } from 'chart.js/auto';
-import { createOptions, buildChartHtml } from "../Helpers/ChartHelpers";
+import { createOptions, buildChartHtml, speedCubeDbUrl, withCaseTooltip } from "../Helpers/ChartHelpers";
 import { Row, Spinner, Tooltip } from "react-bootstrap";
 import { ThemeContext } from "../contexts/ThemeContext";
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { Const } from "../Helpers/Constants";
-import DataGrid, { CellClickArgs } from 'react-data-grid';
+import DataGrid, { CellClickArgs, Column, RenderCellProps, SortColumn } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import 'chartjs-adapter-moment';
 import { createChartWorker } from '../Workers/createChartWorker';
@@ -49,8 +50,7 @@ const RECORD_COLS = [
     { key: 'time', name: 'Time (s)' },
 ];
 
-const ALGO_COLS = [
-    { key: 'case', name: 'Case' },
+const ALGO_STAT_COLS = [
     { key: 'total', name: 'Total' },
     { key: 'failed', name: 'Failed' },
     { key: 'failureRate', name: 'Failure %' },
@@ -59,6 +59,98 @@ const ALGO_COLS = [
     { key: 'avgWasted', name: 'Avg Wasted' },
     { key: 'avgTime', name: 'Avg Time (s)' },
 ];
+
+/**
+ * Built once per step rather than per render: react-data-grid treats a new
+ * column array as a new grid, so rebuilding these would throw away its layout
+ * and row virtualisation on every update.
+ */
+export function algoCols(step: StepName): Column<AlgoPracticeRow>[] {
+    return [
+        {
+            key: 'case',
+            name: 'Case',
+            renderCell: ({ row }: RenderCellProps<AlgoPracticeRow>) => {
+                const url = speedCubeDbUrl(step, row.case);
+                if (url === null) return row.case;
+                return (
+                    <a className="algo-case-link" href={url} target="_blank" rel="noopener noreferrer">
+                        {row.case}
+                    </a>
+                );
+            },
+        },
+        ...ALGO_STAT_COLS,
+    ];
+}
+
+const ALGO_COLS_OLL = algoCols(StepName.OLL);
+const ALGO_COLS_PLL = algoCols(StepName.PLL);
+
+// ── Sortable grid ────────────────────────────────────────────────────────────
+
+/** Matches Date.toDateString() output, which is how dates reach these grids. */
+const DATE_CELL = /^\w{3} \w{3} \d{2} \d{4}$/;
+
+/**
+ * Numeric-aware so cells that are stored as text still order the way they read:
+ * "Sub-5" before "Sub-10", OLL 2 before OLL 10, "20.0%" before "100.0%", "Ao5"
+ * before "Ao12". Emoji suffixes such as "3 🔥" compare on their leading number.
+ */
+const collate = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare;
+
+/** Everything these grids display is already formatted for the user. */
+export type CellValue = string | number | undefined;
+
+export function compareCells(a: CellValue, b: CellValue): number {
+    const left = String(a ?? '');
+    const right = String(b ?? '');
+    // Dates are the one case the collator cannot get right, since it would
+    // compare the month name alphabetically.
+    if (DATE_CELL.test(left) && DATE_CELL.test(right)) return Date.parse(left) - Date.parse(right);
+    return collate(left, right);
+}
+
+interface SortableGridProps<R> {
+    rows: readonly R[];
+    columns: readonly Column<R>[];
+    className?: string;
+    onCellClick?: (args: CellClickArgs<R>) => void;
+}
+
+/**
+ * react-data-grid reports which header was clicked but leaves the ordering to
+ * the caller, so the sort is applied here. Rows are copied before sorting to
+ * avoid mutating the worker's chart data, and memoised so re-renders that do not
+ * change the rows or the sort do not pay for it again.
+ */
+export function SortableGrid<R>({ rows, columns, className, onCellClick }: SortableGridProps<R>) {
+    const [sortColumns, setSortColumns] = React.useState<readonly SortColumn[]>([]);
+
+    const sorted = React.useMemo(() => {
+        if (sortColumns.length === 0) return rows;
+        const { columnKey, direction } = sortColumns[0];
+        const sign = direction === 'ASC' ? 1 : -1;
+        return [...rows].sort((a, b) => sign * compareCells(
+            (a as Record<string, CellValue>)[columnKey],
+            (b as Record<string, CellValue>)[columnKey],
+        ));
+    }, [rows, sortColumns]);
+
+    return (
+        <div style={chartDataGridWrapStyle} className={className}>
+            <DataGrid
+                style={chartDataGridStyle}
+                rows={sorted}
+                columns={columns}
+                sortColumns={sortColumns}
+                onSortColumnsChange={setSortColumns}
+                defaultColumnOptions={{ sortable: true }}
+                onCellClick={onCellClick}
+            />
+        </div>
+    );
+}
 
 const BEST_SOLVES_COLS = [
     { key: 'time', name: 'Time' },
@@ -186,14 +278,14 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
 
         if (p.steps.length === 1 && (p.steps[0] === StepName.OLL || p.steps[0] === StepName.PLL) && c.caseData) {
             charts.push(buildChartHtml(
-                <Bar data={c.caseData} options={createOptions(ChartType.Bar, "Case", "Time (s)", p.useLogScale, true, false, isDark)} />,
+                <Bar data={c.caseData} options={withCaseTooltip(createOptions(ChartType.Bar, "Case", "Time (s)", p.useLogScale, true, false, isDark))} />,
                 "Average Recognition Time and Execution Time per Case",
                 "This chart shows how long your execution/recognition took for any individual last layer algorithm, sorted by how long each took."
             ));
             charts.push(buildChartHtml(
-                <div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.algoPracticeRows ?? []} columns={ALGO_COLS} /></div>,
+                <SortableGrid rows={c.algoPracticeRows ?? []} columns={p.steps[0] === StepName.OLL ? ALGO_COLS_OLL : ALGO_COLS_PLL} />,
                 "Algorithm Practice",
-                "Per-case failure rate and move efficiency. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."
+                "Per-case failure rate and move efficiency. Click a case to see its algorithms on SpeedCubeDB. 'Failed' means core move count exceeded mode and average time for that case, suggesting a redo or correction. 'Avg Wasted' shows redundant same-face moves that could be cancelled."
             ));
         }
 
@@ -204,7 +296,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         charts.push(buildChartHtml(<Line data={c.runningTurns} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale, true, false, isDark)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
         charts.push(buildChartHtml(<Line data={c.runningEfficiency} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Solve Efficiency", "This chart shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL success rates, and a combined solve efficiency (move efficiency minus failure rates)."));
         charts.push(buildChartHtml(
-            <div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.bestSolvesData} columns={BEST_SOLVES_COLS} onCellClick={this.openSolveSource} /></div>,
+            <SortableGrid rows={c.bestSolvesData} columns={BEST_SOLVES_COLS} className="clickable-grid" onCellClick={this.openSolveSource} />,
             `Top ${Const.FastestSolvesCount} Fastest Solves`,
             `This shows your ${Const.FastestSolvesCount} fastest solves, given the filters`
         ));
@@ -217,9 +309,9 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         if (c.runningInspection != null) {
             charts.push(buildChartHtml(<Line data={c.runningInspection} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Inspection Time", "This chart shows how much inspection time you use on average"));
         }
-        charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.streakRows} columns={STREAK_COLS} /></div>, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
+        charts.push(buildChartHtml(<SortableGrid rows={c.streakRows} columns={STREAK_COLS} />, "Longest Daily Streaks", "How many days in a row you've achieved solves of each time"));
         charts.push(buildChartHtml(<Line data={c.dailyRecord} options={createOptions(ChartType.Line, "Date", "Time (s)", p.useLogScale, true, true, isDark)} />, "Daily Fastest Solve", "This chart shows the fastest solve for each day, based on the selected filters"));
-        charts.push(buildChartHtml(<div style={chartDataGridWrapStyle}><DataGrid style={chartDataGridStyle} rows={c.recordRows} columns={RECORD_COLS} /></div>, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
+        charts.push(buildChartHtml(<SortableGrid rows={c.recordRows} columns={RECORD_COLS} />, "Current Records", "This chart shows your current records for Single, Ao5, Ao12, Ao100, and Ao1000"));
 
         if (hasOll && c.ollCategory) {
             charts.push(buildChartHtml(<Line data={c.ollCategory} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "OLL Edge Orientation", "This chart shows your percentage of OLL cases by edge orientation"));
