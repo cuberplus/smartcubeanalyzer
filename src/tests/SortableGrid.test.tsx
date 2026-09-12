@@ -149,4 +149,21 @@ describe('SortableGrid', () => {
         fireEvent.click(screen.getByRole('columnheader', { name: /Label/ }));
         expect(rows.map(r => r.label)).toEqual(before);
     });
+
+    /**
+     * A sortable header is a flex row: the sort arrow takes a fixed slice of the
+     * width, so without a floor the name is squeezed to a character or two on a
+     * phone. Columns keep a usable width and the grid scrolls sideways instead.
+     */
+    test('columns keep a readable width on a narrow screen', () => {
+        renderGrid(ROWS);
+        const headers = screen.getAllByRole('columnheader');
+        for (const header of headers) {
+            expect(header.textContent?.length ?? 0).toBeGreaterThan(1);
+        }
+        const grid = screen.getByRole('grid');
+        const template = grid.style.getPropertyValue('grid-template-columns');
+        // Each column is sized min-content-style with a floor, not a bare fraction.
+        expect(template).toContain('96px');
+    });
 });

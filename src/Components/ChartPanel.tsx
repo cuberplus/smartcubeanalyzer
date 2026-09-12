@@ -28,14 +28,13 @@ type WatchedProp = Solve[] | number | string | boolean | MethodName;
 type ThemeContextValue = { isDark?: boolean };
 
 /** Fill the chart card / Ratio box; DataGrid defaults to ~350px without an explicit height chain. */
-const chartDataGridWrapStyle: React.CSSProperties = {
-    height: '100%',
-    width: '100%',
-    minHeight: 0,
-    overflow: 'auto',
-};
+const chartDataGridWrapStyle: React.CSSProperties = { height: '100%', width: '100%', minHeight: 0, overflow: 'auto' };
 
 const chartDataGridStyle: React.CSSProperties = { height: '100%' };
+
+// A sortable header gives up part of its width to the sort arrow, so a narrow
+// phone column clips the name to a character or two. Below this the grid scrolls.
+const MIN_COL_WIDTH = 96;
 
 // ── Static DataGrid column definitions ───────────────────────────────────────
 
@@ -145,7 +144,7 @@ export function SortableGrid<R>({ rows, columns, className, onCellClick }: Sorta
                 columns={columns}
                 sortColumns={sortColumns}
                 onSortColumnsChange={setSortColumns}
-                defaultColumnOptions={{ sortable: true }}
+                defaultColumnOptions={{ sortable: true, minWidth: MIN_COL_WIDTH }}
                 onCellClick={onCellClick}
             />
         </div>
