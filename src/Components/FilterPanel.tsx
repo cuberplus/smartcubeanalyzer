@@ -11,6 +11,7 @@ import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHe
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateBenchmarkTimes, CalculateWindowSize } from "../Helpers/CubeHelpers";
+import { APP_VERSION } from "../Helpers/Version";
 import ReactSwitch from "react-switch";
 
 /** react-bootstrap's FormControl accepts input, select and textarea events, so borrow its own handler type. */
@@ -35,6 +36,11 @@ const COLOR_OPTIONS: Option<CrossColor>[] =
         .map(x => ({ label: x, value: x }));
 
 const SOURCE_OPTIONS: Option<'cubeast' | 'acubemy'>[] = [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }];
+
+// Closing the test-data warning sticks across visits, the same way the theme toggle does.
+// The version is stored rather than a flag, so a release re-announces itself once.
+const TEST_ALERT_KEY = 'testAlertDismissed';
+const testAlertDismissed = () => localStorage.getItem(TEST_ALERT_KEY) === APP_VERSION;
 
 /** Everything the filter UI starts from, shared by the initial state and the Reset button. */
 function defaultSelections(method: MethodName, sessions: Option[], bench: { goodTime: number, badTime: number }) {
@@ -217,7 +223,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                 newState.windowSize = nextProps.suggestedWindowSize;
             }
             if (nextProps.showTestAlert !== undefined) {
-                newState.showTestAlert = nextProps.showTestAlert;
+                newState.showTestAlert = nextProps.showTestAlert && !testAlertDismissed();
             }
         }
         if (newState.autoWindowSize) {
@@ -407,6 +413,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     hideAlert() {
+        localStorage.setItem(TEST_ALERT_KEY, APP_VERSION);
         this.setState({ showTestAlert: false });
     }
 

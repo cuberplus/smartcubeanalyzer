@@ -11,11 +11,11 @@ import ReactGA from 'react-ga4';
 import { ThemeContext } from "../contexts/ThemeContext";
 
 const CFOP_PRESETS: { label: string; steps: StepName[] }[] = [
-    { label: 'Cross+1',    steps: [StepName.Cross, StepName.F2L_1] },
-    { label: 'All F2L',   steps: [StepName.F2L_1, StepName.F2L_2, StepName.F2L_3, StepName.F2L_4] },
-    { label: 'OLL',       steps: [StepName.OLL] },
-    { label: 'PLL',       steps: [StepName.PLL] },
-    { label: 'Full Solve', steps: [StepName.Cross, StepName.F2L_1, StepName.F2L_2, StepName.F2L_3, StepName.F2L_4, StepName.OLL, StepName.PLL] },
+    { label: 'Cross+1', steps: [StepName.Cross, StepName.F2L_1] },
+    { label: 'F2L', steps: [StepName.F2L_1, StepName.F2L_2, StepName.F2L_3, StepName.F2L_4] },
+    { label: 'OLL', steps: [StepName.OLL] },
+    { label: 'PLL', steps: [StepName.PLL] },
+    { label: 'Full', steps: [StepName.Cross, StepName.F2L_1, StepName.F2L_2, StepName.F2L_3, StepName.F2L_4, StepName.OLL, StepName.PLL] },
 ];
 
 export class FileInput extends React.Component<FileInputProps, FileInputState> {
@@ -195,7 +195,7 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                                 <Card className="info-card h-100">
                                     <Card.Body>
                                         <Card.Title>Preset Step Filters</Card.Title>
-                                        <div className="d-flex flex-wrap gap-2">
+                                        <div className="preset-filters gap-1 gap-sm-2">
                                             {CFOP_PRESETS.map(preset => (
                                                 <Button
                                                     key={preset.label}
