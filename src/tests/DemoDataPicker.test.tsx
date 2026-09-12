@@ -43,14 +43,17 @@ function openMenu() {
 }
 
 describe('the demo data picker', () => {
-    test('the button is labelled Use Demo Data', () => {
+    test('the button is labelled Demo Data, on a single line', () => {
         render(React.createElement(FileInput));
-        expect(screen.getByText('Use Demo Data')).not.toBeNull();
+        const button = screen.getByText('Demo Data');
+        expect(button).not.toBeNull();
+        // A wrapped label looked broken on narrow screens.
+        expect(button.classList.contains('text-nowrap')).toBe(true);
     });
 
     test('clicking the button loads the original demo data', () => {
         render(React.createElement(FileInput));
-        fireEvent.click(screen.getByText('Use Demo Data'));
+        fireEvent.click(screen.getByText('Demo Data'));
         expect(requested).toHaveLength(1);
         expect(requested[0].endsWith(DEFAULT_DEMO_FILE)).toBe(true);
     });

@@ -120,7 +120,7 @@ describe('loading the bundled dev stats through the UI', () => {
             mockChartProps.length = 0;
             render(React.createElement(FileInput));
 
-            fireEvent.click(screen.getByText('Use Demo Data'));
+            fireEvent.click(screen.getByText('Demo Data'));
 
             await waitFor(() => expect(mockChartProps.length).toBeGreaterThan(0), { timeout: 240_000 });
 

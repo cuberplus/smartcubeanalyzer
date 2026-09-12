@@ -184,8 +184,8 @@ export class FileInput extends React.Component<FileInputProps, FileInputState> {
                                         {this.state.isParsing ? "Parsing..." : "Display My Stats!"}
                                     </Button>
                                     <Dropdown as={ButtonGroup} className="col-4">
-                                        <Button disabled={this.state.isParsing} onClick={() => { this.showTestData(); }}>
-                                            {this.state.isParsing ? "Parsing..." : "Use Demo Data"}
+                                        <Button className="text-nowrap" disabled={this.state.isParsing} onClick={() => { this.showTestData(); }}>
+                                            {this.state.isParsing ? "Parsing..." : "Demo Data"}
                                         </Button>
                                         <Dropdown.Toggle split id="demo-data" disabled={this.state.isParsing} aria-label="Choose demo data" />
                                         {/* Positioned against the viewport (strategy: fixed) so it escapes the
