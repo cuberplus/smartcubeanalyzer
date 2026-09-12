@@ -412,6 +412,28 @@ h6 {
   border-top-color: #30363d;
 }
 
+/* Expandable sub-menu headers inside the OLL/PLL filter dropdowns */
+.rmsc .item-renderer.group-header {
+  align-items: center;
+  font-weight: 600;
+}
+
+.rmsc .group-toggle {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  flex: 1;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.rmsc .group-caret {
+  display: inline-block;
+  width: 1em;
+}
+
 /* react-multi-select-component in dark mode (sidebar filters) */
 [data-bs-theme="dark"] .rmsc,
 [data-bs-theme="dark"] .multi-select {

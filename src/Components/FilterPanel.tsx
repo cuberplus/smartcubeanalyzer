@@ -4,8 +4,9 @@ import moment from "moment";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
 import { MultiSelect } from "react-multi-select-component";
-import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, KeysOfType, MethodName, Option, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
+import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, KeysOfType, MethodName, Option, OptionGroup, Solve, SolveCleanliness, SolveLuckiness, Step, StepName } from "../Helpers/Types";
 import { ChartPanel } from "./ChartPanel";
+import { GroupedMultiSelect } from "./GroupedMultiSelect";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, CardText, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
@@ -635,6 +636,21 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         );
     }
 
+    /** A multi-select filter card whose options are split into expandable sub-menus. */
+    groupedMultiFilter(
+        groups: OptionGroup[],
+        value: Option[],
+        onChange: (v: Option[]) => void,
+        title: string,
+        tooltip: string
+    ): JSX.Element {
+        return this.createFilterHtml(
+            <GroupedMultiSelect groups={groups} value={value} onChange={onChange} labelledBy={title} />,
+            title,
+            tooltip
+        );
+    }
+
     /** A filter card holding a low/high pair of numeric inputs. */
     rangeFilter(
         max: string,
@@ -693,26 +709,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             filters = (
                 <Container>
                     {this.createFilterHtml(
-                        <Select
-                            classNamePrefix="method-select"
-                            options={this.getMethodOptions()}
-                            value={this.state.method}
-                            onChange={this.methodChanged.bind(this)}
-                        />,
-                        "Which Method?",
-                        "This dropdown lets you choose which method to show solves for."
+                        <></>,
+                        `Showing ${this.state.filteredSolves.length} / ${this.state.allSolves.length} solves`,
+                        "If you notice that not all your solves are appearing, even when no filters are chosen, either those solves are corrupt, or the source exported a comma in its CSV incorrectly."
                     )}
-                    {this.multiFilter(
-                        this.getSessionOptions(), this.state.chosenSessions, this.chosenSessionsChanged.bind(this),
-                        "Which Sessions?",
-                        "This dropdown lets you choose which method to show solves for."
-                    )}
-                    {this.multiFilter(
-                        [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }],
-                        this.state.chosenSources, this.sourcesChanged.bind(this),
-                        "Source",
-                        "Choose which sources (Cubeast or Acubemy) to include in the analysis."
-                    )}
+
                     {this.multiFilter(
                         FilterPanel.getStepOptionsForMethod(this.state.filters.method),
                         this.state.chosenSteps, this.chosenStepsChanged.bind(this),
@@ -720,27 +721,16 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         "This dropdown lets you choose which step to see more information about. This only affects data in the 'Step Drilldown' tab."
                     )}
 
-                    <br />
-                    <br />
-
-                    {this.createFilterHtml(
-                        <></>,
-                        `Showing ${this.state.filteredSolves.length} / ${this.state.allSolves.length} solves`,
-                        "If you notice that not all your solves are appearing, even when no filters are chosen, either those solves are corrupt, or the source exported a comma in its CSV incorrectly."
+                    {this.groupedMultiFilter(
+                        Const.PllGroups, this.state.chosenPLLs, this.pllChanged.bind(this),
+                        "PLL Cases",
+                        "Choose which PLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
                     )}
 
-                    {this.multiFilter(
-                        FilterPanel.toOptions(Object.values(CrossColor)),
-                        this.state.chosenColors, this.crossColorsChanged.bind(this),
-                        "Cross Color",
-                        "Pick the starting cross color"
-                    )}
-
-                    {this.rangeFilter("300",
-                        { id: "fastestSolve", value: this.state.filters.fastestTime, onChange: this.setFastestSolve.bind(this) },
-                        { id: "slowestSolve", value: this.state.filters.slowestTime, onChange: this.setSlowestSolve.bind(this) },
-                        "Solve Times",
-                        "Choose slowest and fastest solves to keep"
+                    {this.groupedMultiFilter(
+                        Const.OllGroups, this.state.chosenOLLs, this.ollChanged.bind(this),
+                        "OLL Cases",
+                        "Choose which OLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
                     )}
 
                     {this.multiFilter(
@@ -756,15 +746,51 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.multiFilter(
-                        Const.PllCases, this.state.chosenPLLs, this.pllChanged.bind(this),
-                        "PLL Cases",
-                        "Choose which PLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
+                        FilterPanel.toOptions(Object.values(CrossColor)),
+                        this.state.chosenColors, this.crossColorsChanged.bind(this),
+                        "Cross Color",
+                        "Pick the starting cross color"
+                    )}
+
+                    <br />
+                    <br />
+
+                    {this.rangeFilter("300",
+                        { id: "fastestSolve", value: this.state.filters.fastestTime, onChange: this.setFastestSolve.bind(this) },
+                        { id: "slowestSolve", value: this.state.filters.slowestTime, onChange: this.setSlowestSolve.bind(this) },
+                        "Solve Times",
+                        "Choose slowest and fastest solves to keep"
+                    )}
+
+                    {this.rangeFilter("100000",
+                        { id: "lowestInspection", value: this.state.filters.lowestInspection, onChange: this.setLowestInspection.bind(this) },
+                        { id: "highestInspection", value: this.state.filters.highestInspection, onChange: this.setHighestInspection.bind(this) },
+                        "Inspection Time",
+                        "Choose lowest and highest inspection times to keep"
+                    )}
+
+                    {this.createFilterHtml(
+                        <Select
+                            classNamePrefix="method-select"
+                            options={this.getMethodOptions()}
+                            value={this.state.method}
+                            onChange={this.methodChanged.bind(this)}
+                        />,
+                        "Which Method?",
+                        "This dropdown lets you choose which method to show solves for."
                     )}
 
                     {this.multiFilter(
-                        Const.OllCases, this.state.chosenOLLs, this.ollChanged.bind(this),
-                        "OLL Cases",
-                        "Choose which OLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
+                        this.getSessionOptions(), this.state.chosenSessions, this.chosenSessionsChanged.bind(this),
+                        "Which Sessions?",
+                        "This dropdown lets you choose which method to show solves for."
+                    )}
+
+                    {this.multiFilter(
+                        [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }],
+                        this.state.chosenSources, this.sourcesChanged.bind(this),
+                        "Source",
+                        "Choose which sources (Cubeast or Acubemy) to include in the analysis."
                     )}
 
                     {this.autoFilter(
@@ -779,13 +805,6 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         <FormControl min="5" max="10000" type="number" id="pointsPerGraph" value={this.state.pointsPerGraph} onChange={this.setPointsPerGraph.bind(this)} />,
                         "Points Per Graph",
                         "Choose how many points to show on each chart. If this value is set too high, you may see performance issues."
-                    )}
-
-                    {this.rangeFilter("100000",
-                        { id: "lowestInspection", value: this.state.filters.lowestInspection, onChange: this.setLowestInspection.bind(this) },
-                        { id: "highestInspection", value: this.state.filters.highestInspection, onChange: this.setHighestInspection.bind(this) },
-                        "Inspection Time",
-                        "Choose lowest and highest inspection times to keep"
                     )}
 
                     {this.switchFilter("useLogScale", this.state.useLogScale, this.setUseLogScale.bind(this),

@@ -1,5 +1,13 @@
-import { Option } from "./Types";
+import { Option, OptionGroup } from "./Types";
 import { CrossColor, MethodName, OllEdgeOrientation, PllCornerPermutation, StepName } from "./Types";
+
+/**
+ * Buckets cases into dropdown sub-menus using the same classification map that drives the
+ * OLL/PLL category charts, so the two can never disagree about which case sits where.
+ */
+function groupCases<T extends string>(cases: Option[], mapping: Map<string, T>, order: [T, string][]): OptionGroup[] {
+    return order.map(([key, label]) => ({ label, options: cases.filter(c => mapping.get(c.value) === key) }));
+}
 
 export class Const {
     static readonly StdDevWindow: number = 1000; // This is the default window to use when calculating a single standard deviation
@@ -191,6 +199,21 @@ export class Const {
             ['57', OllEdgeOrientation.Line]
         ]
     )
+
+    /** PLL sub-menus, ordered by how scrambled the corners are. */
+    static readonly PllGroups: OptionGroup[] = groupCases(Const.PllCases, Const.PllCornerPermutationMapping, [
+        [PllCornerPermutation.Adjacent, "Corners Swapped Adjacent"],
+        [PllCornerPermutation.Diagonal, "Corners Swapped Diagonally"],
+        [PllCornerPermutation.Solved, "Corners Solved"]
+    ]);
+
+    /** OLL sub-menus, ordered by the edge-orientation shape on the last layer. */
+    static readonly OllGroups: OptionGroup[] = groupCases(Const.OllCases, Const.OllEdgeOrientationMapping, [
+        [OllEdgeOrientation.Dot, "Dot Cases"],
+        [OllEdgeOrientation.Line, "Line Cases"],
+        [OllEdgeOrientation.Angle, "Angle Cases"],
+        [OllEdgeOrientation.Cross, "Cross Cases"]
+    ]);
 
     static readonly crossMappings = new Map<string, CrossColor>(
         [

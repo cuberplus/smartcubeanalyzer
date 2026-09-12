@@ -8,6 +8,9 @@ export type LabelledChart<T extends 'line' | 'bar' | 'doughnut', TLabel = string
 
 export interface Option<TValue extends string = string> { value: TValue; label: string; key?: string; disabled?: boolean; }
 
+/** A collapsible sub-menu of related options inside a single dropdown. */
+export interface OptionGroup<TValue extends string = string> { label: string; options: Option<TValue>[]; }
+
 /** The subset of T's keys whose values are assignable to V. */
 export type KeysOfType<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
 
