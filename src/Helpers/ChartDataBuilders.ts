@@ -77,81 +77,35 @@ export function buildRunningRecognitionExecution(
     use4SegmentTiming: boolean
 ): ChartData<'line'> {
     const colors = SEGMENT_COLORS;
-    let movingRecognition = calculateMovingAverage(solves.map((x) => x.recognitionTime), windowSize);
-    const labels = makeLabels(movingRecognition.length, pointsPerGraph);
-    movingRecognition = reduceDataset(movingRecognition, pointsPerGraph);
+    const moving = (extract: (s: Solve) => number) => calculateMovingAverage(solves.map(extract), windowSize);
 
-    if (use4SegmentTiming) {
-        const movingPreAuf = reduceDataset(
-            calculateMovingAverage(solves.map((x) => x.preAufTime), windowSize),
-            pointsPerGraph
-        );
-        const movingCoreExec = reduceDataset(
-            calculateMovingAverage(
-                solves.map((x) => x.executionTime - x.preAufTime - x.postAufTime),
-                windowSize
-            ),
-            pointsPerGraph
-        );
-        const movingPostAuf = reduceDataset(
-            calculateMovingAverage(solves.map((x) => x.postAufTime), windowSize),
-            pointsPerGraph
-        );
-        const hasPreAuf = movingPreAuf.some((v) => v > 0);
-        const hasPostAuf = movingPostAuf.some((v) => v > 0);
-        const datasets: ChartData<'line'>['datasets'] = [
-            {
-                label: `Average Recognition Of ${windowSize}`,
-                data: movingRecognition,
-                borderColor: colors.recognition,
-                backgroundColor: colors.recognition,
-            },
+    const recognition = { name: 'Recognition', values: moving((x) => x.recognitionTime), color: colors.recognition };
+    const labels = makeLabels(recognition.values.length, pointsPerGraph);
+
+    // AUF segments only appear when the data actually contains them.
+    const segments = use4SegmentTiming
+        ? [
+            recognition,
+            { name: 'Pre-AUF', values: moving((x) => x.preAufTime), color: colors.preAuf, optional: true },
+            { name: 'Execution', values: moving((x) => x.executionTime - x.preAufTime - x.postAufTime), color: colors.execution },
+            { name: 'Post-AUF', values: moving((x) => x.postAufTime), color: colors.postAuf, optional: true },
+        ]
+        : [
+            recognition,
+            { name: 'Execution', values: moving((x) => x.executionTime), color: colors.execution },
         ];
-        if (hasPreAuf) {
-            datasets.push({
-                label: `Average Pre-AUF Of ${windowSize}`,
-                data: movingPreAuf,
-                borderColor: colors.preAuf,
-                backgroundColor: colors.preAuf,
-            });
-        }
-        datasets.push({
-            label: `Average Execution Of ${windowSize}`,
-            data: movingCoreExec,
-            borderColor: colors.execution,
-            backgroundColor: colors.execution,
-        });
-        if (hasPostAuf) {
-            datasets.push({
-                label: `Average Post-AUF Of ${windowSize}`,
-                data: movingPostAuf,
-                borderColor: colors.postAuf,
-                backgroundColor: colors.postAuf,
-            });
-        }
-        return { labels, datasets } as ChartData<'line'>;
-    }
 
-    const movingExecution = reduceDataset(
-        calculateMovingAverage(solves.map((x) => x.executionTime), windowSize),
-        pointsPerGraph
-    );
     return {
         labels,
-        datasets: [
-            {
-                label: `Average Recognition Of ${windowSize}`,
-                data: movingRecognition,
-                borderColor: colors.recognition,
-                backgroundColor: colors.recognition,
-            },
-            {
-                label: `Average Execution Of ${windowSize}`,
-                data: movingExecution,
-                borderColor: colors.execution,
-                backgroundColor: colors.execution,
-            },
-        ],
+        datasets: segments
+            .map((s) => ({ ...s, data: reduceDataset(s.values, pointsPerGraph) }))
+            .filter((s) => !('optional' in s && s.optional) || s.data.some((v) => v > 0))
+            .map((s) => ({
+                label: `Average ${s.name} Of ${windowSize}`,
+                data: s.data,
+                borderColor: s.color,
+                backgroundColor: s.color,
+            })),
     } as ChartData<'line'>;
 }
 

@@ -7,7 +7,6 @@ import {
     FastestSolve,
     MethodName,
     RecordRow,
-    Solve,
     StepName,
     StreakRow,
 } from "../Helpers/Types";
@@ -89,60 +88,29 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _worker: Worker | null = null;
     private _pendingRequestId = 0;
 
-    // Cached prop refs for change detection
-    private _lastSolvesRef: Solve[] | null = null;
-    private _lastWindowSizeRef: number = 0;
-    private _lastPointsPerGraphRef: number = 0;
-    private _lastStepsKeyRef: string = '';
-    private _lastUseLogScaleRef: boolean = false;
-    private _lastGoodTimeRef: number = 0;
-    private _lastBadTimeRef: number = 0;
-    private _lastMethodNameRef: MethodName = MethodName.CFOP;
-    private _lastUse4SegmentTimingRef: boolean = false;
-    private _lastIsDarkRef: boolean = false;
+    /** Snapshot of the props the worker depends on; `solves` is compared by reference. */
+    private _lastWatched: unknown[] = [];
 
     private _isDark(): boolean {
         return (this.context as { isDark?: boolean } | undefined)?.isDark ?? false;
     }
 
-    private _propsChanged(): boolean {
+    private _watched(): unknown[] {
         const p = this.props;
-        const stepsKey = p.steps.join(',');
-        const isDark = this._isDark();
-        return (
-            this._lastSolvesRef !== p.solves ||
-            this._lastWindowSizeRef !== p.windowSize ||
-            this._lastPointsPerGraphRef !== p.pointsPerGraph ||
-            this._lastStepsKeyRef !== stepsKey ||
-            this._lastUseLogScaleRef !== p.useLogScale ||
-            this._lastGoodTimeRef !== p.goodTime ||
-            this._lastBadTimeRef !== p.badTime ||
-            this._lastMethodNameRef !== p.methodName ||
-            this._lastUse4SegmentTimingRef !== p.use4SegmentTiming ||
-            this._lastIsDarkRef !== isDark
-        );
+        return [p.solves, p.windowSize, p.pointsPerGraph, p.steps.join(','), p.useLogScale,
+            p.goodTime, p.badTime, p.methodName, p.use4SegmentTiming, this._isDark()];
     }
 
-    private _updatePropsRefs(): void {
-        const p = this.props;
-        const isDark = this._isDark();
-        this._lastSolvesRef = p.solves;
-        this._lastWindowSizeRef = p.windowSize;
-        this._lastPointsPerGraphRef = p.pointsPerGraph;
-        this._lastStepsKeyRef = p.steps.join(',');
-        this._lastUseLogScaleRef = p.useLogScale;
-        this._lastGoodTimeRef = p.goodTime;
-        this._lastBadTimeRef = p.badTime;
-        this._lastMethodNameRef = p.methodName;
-        this._lastUse4SegmentTimingRef = p.use4SegmentTiming;
-        this._lastIsDarkRef = isDark;
+    private _propsChanged(): boolean {
+        const next = this._watched();
+        return next.length !== this._lastWatched.length || next.some((v, i) => v !== this._lastWatched[i]);
     }
 
     private _sendWork(): void {
         if (!this._worker) return;
         const p = this.props;
         this._pendingRequestId++;
-        this._updatePropsRefs();
+        this._lastWatched = this._watched();
         this.setState({ isComputing: true, chartData: null });
         this._worker.postMessage({
             requestId: this._pendingRequestId,

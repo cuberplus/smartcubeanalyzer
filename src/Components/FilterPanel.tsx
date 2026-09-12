@@ -379,13 +379,43 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         return newState;
     }
 
-    crossColorsChanged(selectedList: any[]) {
-        let selectedColors: CrossColor[] = selectedList.map(x => x.value);
+    /** Multi-selects all behave the same: raw options in state, their values in filters. */
+    setMulti(filterKey: keyof Filters, stateKey: keyof FilterPanelState, selectedList: any[]) {
         this.setState({
-            filters: { ...this.state.filters, crossColors: selectedColors },
-            chosenColors: selectedList
-        })
+            filters: { ...this.state.filters, [filterKey]: selectedList.map(x => x.value) },
+            [stateKey]: selectedList
+        } as any);
     }
+
+    setFilter(filterKey: keyof Filters, value: any) {
+        this.setState({ filters: { ...this.state.filters, [filterKey]: value } } as any);
+    }
+
+    setNumberFilter(filterKey: keyof Filters, event: React.ChangeEvent<HTMLInputElement>) {
+        this.setFilter(filterKey, parseInt(event.target.value));
+    }
+
+    setField(stateKey: keyof FilterPanelState, value: any) {
+        this.setState({ [stateKey]: value } as any);
+    }
+
+    setNumberField(stateKey: keyof FilterPanelState, event: React.ChangeEvent<HTMLInputElement>) {
+        this.setField(stateKey, parseInt(event.target.value));
+    }
+
+    crossColorsChanged(selectedList: any[]) { this.setMulti('crossColors', 'chosenColors', selectedList); }
+
+    chosenSessionsChanged(selectedList: any[]) { this.setMulti('sessions', 'chosenSessions', selectedList); }
+
+    sourcesChanged(selectedList: any[]) { this.setMulti('sources', 'chosenSources', selectedList); }
+
+    pllChanged(selectedList: any[]) { this.setMulti('pllCases', 'chosenPLLs', selectedList); }
+
+    ollChanged(selectedList: any[]) { this.setMulti('ollCases', 'chosenOLLs', selectedList); }
+
+    setCleanliness(selectedList: any[]) { this.setMulti('solveCleanliness', 'solveCleanliness', selectedList); }
+
+    setLuckiness(selectedList: any[]) { this.setMulti('solveLuckiness', 'solveLuckiness', selectedList); }
 
     windowSizeChanged(newWindowSize: number) {
         this.setState({
@@ -409,36 +439,16 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         })
     }
 
-    chosenSessionsChanged(selectedList: any[]) {
-        let selectedSessions: string[] = selectedList.map(x => x.value);
-        this.setState({
-            filters: { ...this.state.filters, sessions: selectedSessions },
-            chosenSessions: selectedList
-        })
-    }
-
-    sourcesChanged(selectedList: any[]) {
-        let selectedSources: ('cubeast' | 'acubemy')[] = selectedList.map(x => x.value);
-        this.setState({
-            filters: { ...this.state.filters, sources: selectedSources },
-            chosenSources: selectedList
-        })
+    static toOptions<T extends string>(values: readonly T[]): Option[] {
+        return values.map(x => ({ label: x, value: x }));
     }
 
     static getStepOptionsForMethod(method: MethodName) {
-        let options: Option[] = [];
-        Const.MethodSteps[method].forEach(x => {
-            options.push({ label: x, value: x });
-        })
-        return options;
+        return FilterPanel.toOptions(Const.MethodSteps[method]);
     }
 
     getMethodOptions() {
-        let options: Option[] = [];
-        Object.values(MethodName).forEach(x => {
-            options.push({ label: x, value: x });
-        })
-        return options;
+        return FilterPanel.toOptions(Object.values(MethodName));
     }
 
     getSessionOptions() {
@@ -458,69 +468,25 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     applyStepsPreset(steps: StepName[]) {
         this.setState({
             filters: { ...this.state.filters, steps },
-            chosenSteps: steps.map(s => ({ label: s, value: s })),
+            chosenSteps: FilterPanel.toOptions(steps),
         });
     }
 
-    pllChanged(selectedList: any[]) {
-        let selectedPlls: string[] = selectedList.map(x => x.value);
-        this.setState({
-            filters: { ...this.state.filters, pllCases: selectedPlls },
-            chosenPLLs: selectedList
-        })
-    }
+    setStartDate(newStartDate: Date) { this.setFilter('startDate', newStartDate); }
 
-    ollChanged(selectedList: any[]) {
-        let selectedOlls: string[] = selectedList.map(x => x.value);
-        this.setState({
-            filters: { ...this.state.filters, ollCases: selectedOlls },
-            chosenOLLs: selectedList
-        })
-    }
+    setEndDate(newEndDate: Date) { this.setFilter('endDate', newEndDate); }
 
-    setStartDate(newStartDate: Date) {
-        this.setState({
-            filters: { ...this.state.filters, startDate: newStartDate }
-        })
-    }
+    setSlowestSolve(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberFilter('slowestTime', event); }
 
-    setEndDate(newEndDate: Date) {
-        this.setState({
-            filters: { ...this.state.filters, endDate: newEndDate }
-        })
-    }
+    setFastestSolve(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberFilter('fastestTime', event); }
 
-    setSlowestSolve(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({
-            filters: { ...this.state.filters, slowestTime: parseInt(event.target.value) }
-        })
-    }
+    setLowestInspection(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberFilter('lowestInspection', event); }
 
-    setFastestSolve(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({
-            filters: { ...this.state.filters, fastestTime: parseInt(event.target.value) }
-        })
-    }
+    setHighestInspection(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberFilter('highestInspection', event); }
 
-    setLowestInspection(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({
-            filters: { ...this.state.filters, lowestInspection: parseInt(event.target.value) }
-        })
-    }
+    setBadTime(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberField('badTime', event); }
 
-    setHighestInspection(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({
-            filters: { ...this.state.filters, highestInspection: parseInt(event.target.value) }
-        })
-    }
-
-    setBadTime(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ badTime: parseInt(event.target.value) })
-    }
-
-    setGoodTime(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ goodTime: parseInt(event.target.value) })
-    }
+    setGoodTime(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberField('goodTime', event); }
 
     setWindowSize(event: React.ChangeEvent<HTMLInputElement>) {
         const parsedWindowSize = parseInt(event.target.value);
@@ -557,47 +523,19 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         });
     }
 
-    setPointsPerGraph(event: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ pointsPerGraph: parseInt(event.target.value) })
-    }
+    setPointsPerGraph(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberField('pointsPerGraph', event); }
 
-    setUseLogScale(checked: boolean) {
-        this.setState({ useLogScale: checked });
-    }
+    setUseLogScale(checked: boolean) { this.setField('useLogScale', checked); }
 
-    setUse4SegmentTiming(checked: boolean) {
-        this.setState({ use4SegmentTiming: checked });
-    }
+    setUse4SegmentTiming(checked: boolean) { this.setField('use4SegmentTiming', checked); }
 
-    setCleanliness(selectedList: any[]) {
-        this.setState({
-            solveCleanliness: selectedList,
-            filters: { ...this.state.filters, solveCleanliness: selectedList.map(x => x.value) },
-        })
-    }
+    setTestAlert(showTestAlert: boolean) { this.setField('showTestAlert', showTestAlert); }
 
-    setLuckiness(selectedList: any[]) {
-        this.setState({
-            solveLuckiness: selectedList,
-            filters: { ...this.state.filters, solveLuckiness: selectedList.map(x => x.value) },
-        })
-    }
+    tabSelect(key: any) { this.setField('tabKey', key); }
 
-    setTestAlert(showTestAlert: boolean) {
-        this.setState({ showTestAlert: showTestAlert })
-    }
+    showFilters() { this.setField('showFilters', true); }
 
-    tabSelect(key: any) {
-        this.setState({ tabKey: key });
-    }
-
-    showFilters() {
-        this.setState({ showFilters: true });
-    }
-
-    hideFilters() {
-        this.setState({ showFilters: false });
-    }
+    hideFilters() { this.setField('showFilters', false); }
 
     resetFilters() {
         const allSessions = CalculateAllSessionOptions(this.state.allSolves);
@@ -675,6 +613,73 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         )
     }
 
+    /** A multi-select filter card; every one of these shares the same wiring. */
+    multiFilter(
+        options: { label: string; value: string }[],
+        value: { label: string; value: string }[],
+        onChange: (v: { label: string; value: string }[]) => void,
+        title: string,
+        tooltip: string
+    ): JSX.Element {
+        return this.createFilterHtml(
+            <MultiSelect options={options} value={value} onChange={onChange} labelledBy="Select" />,
+            title,
+            tooltip
+        );
+    }
+
+    /** A filter card holding a low/high pair of numeric inputs. */
+    rangeFilter(
+        max: string,
+        low: { id: string; value: number; onChange: (e: any) => void },
+        high: { id: string; value: number; onChange: (e: any) => void },
+        title: string,
+        tooltip: string
+    ): JSX.Element {
+        return this.createFilterHtml(
+            <div className="row">
+                {[low, high].map((f) => (
+                    <div className="form-outline col-6" key={f.id}>
+                        <FormControl min="0" max={max} type="number" id={f.id} value={f.value} onChange={f.onChange} />
+                    </div>
+                ))}
+            </div>,
+            title,
+            tooltip
+        );
+    }
+
+    /** A filter card with an "Auto" switch that disables its numeric inputs. */
+    autoFilter(
+        auto: { id: string; checked: boolean; onChange: (v: boolean) => void },
+        min: string,
+        max: string,
+        fields: { id: string; value: number; onChange: (e: any) => void }[],
+        title: string,
+        tooltip: string
+    ): JSX.Element {
+        return this.createFilterHtml(
+            <div className="row align-items-center g-2">
+                <div className="col-auto d-flex align-items-center gap-2">
+                    <span className="small">Auto</span>
+                    <ReactSwitch id={auto.id} checked={auto.checked} onChange={auto.onChange} />
+                </div>
+                {fields.map((f) => (
+                    <div className="col" key={f.id}>
+                        <FormControl min={min} max={max} type="number" id={f.id} value={f.value} onChange={f.onChange} disabled={auto.checked} />
+                    </div>
+                ))}
+            </div>,
+            title,
+            tooltip
+        );
+    }
+
+    /** A filter card holding a single on/off switch. */
+    switchFilter(id: string, checked: boolean, onChange: (v: boolean) => void, title: string, tooltip: string): JSX.Element {
+        return this.createFilterHtml(<ReactSwitch id={id} checked={checked} onChange={onChange} />, title, tooltip);
+    }
+
     render() {
         let filters: JSX.Element = (<></>);
         if (this.state.allSolves.length > 0) {
@@ -690,36 +695,20 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         "Which Method?",
                         "This dropdown lets you choose which method to show solves for."
                     )}
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={this.getSessionOptions()}
-                            value={this.state.chosenSessions}
-                            onChange={this.chosenSessionsChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        this.getSessionOptions(), this.state.chosenSessions, this.chosenSessionsChanged.bind(this),
                         "Which Sessions?",
                         "This dropdown lets you choose which method to show solves for."
                     )}
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={[
-                                { label: 'Cubeast', value: 'cubeast' },
-                                { label: 'Acubemy', value: 'acubemy' }
-                            ]}
-                            value={this.state.chosenSources}
-                            onChange={this.sourcesChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }],
+                        this.state.chosenSources, this.sourcesChanged.bind(this),
                         "Source",
                         "Choose which sources (Cubeast or Acubemy) to include in the analysis."
                     )}
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={FilterPanel.getStepOptionsForMethod(this.state.filters.method)}
-                            value={this.state.chosenSteps}
-                            onChange={this.chosenStepsChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        FilterPanel.getStepOptionsForMethod(this.state.filters.method),
+                        this.state.chosenSteps, this.chosenStepsChanged.bind(this),
                         "Which step to drill down?",
                         "This dropdown lets you choose which step to see more information about. This only affects data in the 'Step Drilldown' tab."
                     )}
@@ -733,93 +722,48 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         "If you notice that not all your solves are appearing, even when no filters are chosen, either those solves are corrupt, or the source exported a comma in its CSV incorrectly."
                     )}
 
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={[
-                                { label: CrossColor.White, value: CrossColor.White },
-                                { label: CrossColor.Yellow, value: CrossColor.Yellow },
-                                { label: CrossColor.Red, value: CrossColor.Red },
-                                { label: CrossColor.Orange, value: CrossColor.Orange },
-                                { label: CrossColor.Blue, value: CrossColor.Blue },
-                                { label: CrossColor.Green, value: CrossColor.Green },
-                                { label: CrossColor.Unknown, value: CrossColor.Unknown }
-                            ]}
-                            value={this.state.chosenColors}
-                            onChange={this.crossColorsChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        FilterPanel.toOptions(Object.values(CrossColor)),
+                        this.state.chosenColors, this.crossColorsChanged.bind(this),
                         "Cross Color",
                         "Pick the starting cross color"
                     )}
 
-                    {this.createFilterHtml(
-                        <div className="row">
-                            <div className="form-outline col-6" >
-                                <FormControl min="0" max="300" type="number" id="fastestSolve" value={this.state.filters.fastestTime} onChange={this.setFastestSolve.bind(this)} />
-                            </div>
-                            <div className="form-outline col-6" >
-                                <FormControl min="0" max="300" type="number" id="slowestSolve" value={this.state.filters.slowestTime} onChange={this.setSlowestSolve.bind(this)} />
-                            </div>
-                        </div>,
+                    {this.rangeFilter("300",
+                        { id: "fastestSolve", value: this.state.filters.fastestTime, onChange: this.setFastestSolve.bind(this) },
+                        { id: "slowestSolve", value: this.state.filters.slowestTime, onChange: this.setSlowestSolve.bind(this) },
                         "Solve Times",
                         "Choose slowest and fastest solves to keep"
                     )}
 
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={Const.solveCleanliness}
-                            value={this.state.solveCleanliness}
-                            onChange={this.setCleanliness.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        Const.solveCleanliness, this.state.solveCleanliness, this.setCleanliness.bind(this),
                         "Solve Cleanliness",
                         "Choose whether to show messed up solves or clean solves. The definition of a mistake is: Any solve that took 3 standard deviations more than average OR any step that took 3 standard deviations more than average for that step"
                     )}
 
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={Const.solveLuckiness}
-                            value={this.state.solveLuckiness}
-                            onChange={this.setLuckiness.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        Const.solveLuckiness, this.state.solveLuckiness, this.setLuckiness.bind(this),
                         "Solve Luckiness",
                         "Choose whether to show fullstep solves, or solves with skips in them"
                     )}
 
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={Const.PllCases}
-                            value={this.state.chosenPLLs}
-                            onChange={this.pllChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        Const.PllCases, this.state.chosenPLLs, this.pllChanged.bind(this),
                         "PLL Cases",
                         "Choose which PLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
                     )}
 
-                    {this.createFilterHtml(
-                        <MultiSelect
-                            options={Const.OllCases}
-
-                            value={this.state.chosenOLLs}
-                            onChange={this.ollChanged.bind(this)}
-                            labelledBy="Select"
-                        />,
+                    {this.multiFilter(
+                        Const.OllCases, this.state.chosenOLLs, this.ollChanged.bind(this),
                         "OLL Cases",
                         "Choose which OLL Cases to show. This will not work if you do not have Cubeast Premium. I suggest using this simply to keep/remove skips."
                     )}
 
-                    {this.createFilterHtml(
-                        <div className="row align-items-center g-2">
-                            <div className="col-auto d-flex align-items-center gap-2">
-                                <span className="small">Auto</span>
-                                <ReactSwitch id="autoWindowSize" checked={this.state.autoWindowSize} onChange={this.setAutoWindowSize.bind(this)} />
-                            </div>
-                            <div className="col">
-                                <FormControl min="5" max="10000" type="number" id="windowSize" value={this.state.windowSize} onChange={this.setWindowSize.bind(this)} disabled={this.state.autoWindowSize} />
-                            </div>
-                        </div>,
+                    {this.autoFilter(
+                        { id: "autoWindowSize", checked: this.state.autoWindowSize, onChange: this.setAutoWindowSize.bind(this) },
+                        "5", "10000",
+                        [{ id: "windowSize", value: this.state.windowSize, onChange: this.setWindowSize.bind(this) }],
                         "Sliding Window Size",
                         "Choose the sliding window size. When Auto is enabled, the size is chosen automatically based on how many solves are shown. If you see no data, try lowering this value."
                     )}
@@ -830,44 +774,30 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                         "Choose how many points to show on each chart. If this value is set too high, you may see performance issues."
                     )}
 
-                    {this.createFilterHtml(
-                        <div className="row">
-                            <div className="form-outline col-6" >
-                                <FormControl min="0" max="100000" type="number" id="lowestInspection" value={this.state.filters.lowestInspection} onChange={this.setLowestInspection.bind(this)} />
-                            </div>
-                            <div className="form-outline col-6" >
-                                <FormControl min="0" max="100000" type="number" id="highestInspection" value={this.state.filters.highestInspection} onChange={this.setHighestInspection.bind(this)} />
-                            </div>
-                        </div>,
+                    {this.rangeFilter("100000",
+                        { id: "lowestInspection", value: this.state.filters.lowestInspection, onChange: this.setLowestInspection.bind(this) },
+                        { id: "highestInspection", value: this.state.filters.highestInspection, onChange: this.setHighestInspection.bind(this) },
                         "Inspection Time",
                         "Choose lowest and highest inspection times to keep"
                     )}
 
-                    {this.createFilterHtml(
-                        <ReactSwitch id="useLogScale" checked={this.state.useLogScale} onChange={this.setUseLogScale.bind(this)} />,
+                    {this.switchFilter("useLogScale", this.state.useLogScale, this.setUseLogScale.bind(this),
                         "Use Logarithmic Scale",
                         "Use a Logarithmic Scale for the Y axis. If you are unsure what this means, leave it disabled"
                     )}
 
-                    {this.createFilterHtml(
-                        <ReactSwitch id="use4SegmentTiming" checked={this.state.use4SegmentTiming} onChange={this.setUse4SegmentTiming.bind(this)} />,
+                    {this.switchFilter("use4SegmentTiming", this.state.use4SegmentTiming, this.setUse4SegmentTiming.bind(this),
                         "4-Segment Timing",
                         "Show recognition, pre-AUF, execution, and post-AUF as separate segments in timing charts. When off, shows only recognition and execution."
                     )}
 
-                    {this.createFilterHtml(
-                        <div className="row align-items-center g-2">
-                            <div className="col-auto d-flex align-items-center gap-2">
-                                <span className="small">Auto</span>
-                                <ReactSwitch id="autoBenchmarks" checked={this.state.autoBenchmarks} onChange={this.setAutoBenchmarks.bind(this)} />
-                            </div>
-                            <div className="col">
-                                <FormControl min="0" max="300" type="number" id="goodTime" value={this.state.goodTime} onChange={this.setGoodTime.bind(this)} disabled={this.state.autoBenchmarks} />
-                            </div>
-                            <div className="col">
-                                <FormControl min="0" max="300" type="number" id="badTime" value={this.state.badTime} onChange={this.setBadTime.bind(this)} disabled={this.state.autoBenchmarks} />
-                            </div>
-                        </div>,
+                    {this.autoFilter(
+                        { id: "autoBenchmarks", checked: this.state.autoBenchmarks, onChange: this.setAutoBenchmarks.bind(this) },
+                        "0", "300",
+                        [
+                            { id: "goodTime", value: this.state.goodTime, onChange: this.setGoodTime.bind(this) },
+                            { id: "badTime", value: this.state.badTime, onChange: this.setBadTime.bind(this) },
+                        ],
                         "Benchmarks",
                         "Choose what you consider a 'good' solve and a 'bad' solve. When Auto is enabled, good/bad are calculated from your current Ao100 and +25% for bad."
                     )}

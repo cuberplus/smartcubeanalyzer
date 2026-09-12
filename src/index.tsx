@@ -5,13 +5,8 @@ import App from './Components/App';
 import 'bootstrap/dist/css/bootstrap.css';
 import "./CSS/Style.css";
 
-// Chart.js uses ResizeObserver internally; this benign warning fires when the
-// observer callback can't deliver notifications within a single animation frame.
-window.addEventListener('error', (e) => {
-  if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
-    e.stopImmediatePropagation();
-  }
-});
+// Note: the benign ResizeObserver warning is suppressed in public/theme-init.js,
+// which loads before this bundle. See the comment there for why it can't live here.
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

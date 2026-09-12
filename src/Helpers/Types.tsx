@@ -134,10 +134,6 @@ export function getStep(solve: Solve, name: StepName): Step | undefined {
     return solve.steps.find(s => s.name === name);
 }
 
-export interface AppState {
-    solves: Solve[]
-}
-
 export interface FilterPanelProps {
     solves: Solve[],
     suggestedMethod?: Option,
@@ -234,18 +230,6 @@ export interface AlgoPracticeRow {
     avgTime: string;
 }
 
-export interface StepDrilldownProps {
-    windowSize: number,
-    pointsPerGraph: number,
-    steps: Step[],
-    stepName: string,
-    methodName: MethodName
-}
-
-export interface StepDrilldownState {
-
-}
-
 export interface HelpPanelProps {
     showHelpPanel: boolean,
     onCloseHandler: any
@@ -253,20 +237,6 @@ export interface HelpPanelProps {
 
 export interface HelpPanelState {
 
-}
-
-export interface Deviations {
-    dev_total: number,
-    dev: number[],
-    avg_total: number,
-    avg: number[]
-}
-
-export interface Records {
-    best: number,
-    bestAo5: number,
-    bestAo12: number,
-    bestAo100: number
 }
 
 export interface FastestSolve {
