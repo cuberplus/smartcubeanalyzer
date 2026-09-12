@@ -188,9 +188,7 @@ export interface FilterPanelState {
     use4SegmentTiming: boolean
 }
 
-export interface FileInputProps {
-
-}
+export interface FileInputProps { }
 
 export interface FileInputState {
     solves: Solve[],
@@ -215,10 +213,7 @@ export interface ChartPanelProps {
     use4SegmentTiming: boolean
 }
 
-export interface ChartPanelState {
-    chartData: ChartDataBundle | null;
-    isComputing: boolean;
-}
+export interface ChartPanelState { chartData: ChartDataBundle | null; isComputing: boolean; }
 
 /** A record chart plots one point per personal best, so its x axis is a date rather than a category. */
 export type DatedPoint = { x: Date; y: number };
@@ -253,16 +248,9 @@ export interface ChartDataBundle {
     algoPracticeRows?: AlgoPracticeRow[];
 }
 
-export interface StreakRow {
-    time: string;
-    currentstreak: string;
-    longeststreak: string;
-}
+export interface StreakRow { time: string; currentstreak: string; longeststreak: string; }
 
-export interface RecordRow {
-    recordType: string;
-    time: string;
-}
+export interface RecordRow { recordType: string; time: string; }
 
 export interface AlgoPracticeRow {
     case: string;
@@ -275,14 +263,9 @@ export interface AlgoPracticeRow {
     avgTime: string;
 }
 
-export interface HelpPanelProps {
-    showHelpPanel: boolean,
-    onCloseHandler: () => void
-}
+export interface HelpPanelProps { showHelpPanel: boolean, onCloseHandler: () => void }
 
-export interface HelpPanelState {
-
-}
+export interface HelpPanelState { }
 
 export interface FastestSolve {
     time: string,
@@ -294,10 +277,7 @@ export interface FastestSolve {
     rawSourceId?: string
 }
 
-export interface StreakData {
-    longestStreak: number,
-    currentStreak: number,
-}
+export interface StreakData { longestStreak: number, currentStreak: number }
 
 export interface RedundantPair {
     startIdx: number,

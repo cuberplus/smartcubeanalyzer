@@ -30,6 +30,47 @@ function datePickerFormat(): string {
     return 'dd/MM/yyyy';
 }
 
+const COLOR_OPTIONS: Option<CrossColor>[] =
+    [CrossColor.White, CrossColor.Yellow, CrossColor.Red, CrossColor.Orange, CrossColor.Blue, CrossColor.Green, CrossColor.Unknown]
+        .map(x => ({ label: x, value: x }));
+
+const SOURCE_OPTIONS: Option<'cubeast' | 'acubemy'>[] = [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }];
+
+/** Everything the filter UI starts from, shared by the initial state and the Reset button. */
+function defaultSelections(method: MethodName, sessions: Option[], bench: { goodTime: number, badTime: number }) {
+    return {
+        filters: {
+            sources: SOURCE_OPTIONS.map(x => x.value),
+            ...defaultDateRange(),
+            fastestTime: 0,
+            slowestTime: 300,
+            crossColors: COLOR_OPTIONS.map(x => x.value),
+            pllCases: Const.PllCases.map(x => x.value),
+            ollCases: Const.OllCases.map(x => x.value),
+            steps: Const.MethodSteps[method],
+            solveCleanliness: Const.solveCleanliness.map(x => x.value),
+            solveLuckiness: Const.solveLuckiness.map(x => x.value),
+            method,
+            sessions: sessions.map(x => x.value),
+            lowestInspection: 0,
+            highestInspection: 300,
+        },
+        chosenSteps: FilterPanel.getStepOptionsForMethod(method),
+        chosenColors: COLOR_OPTIONS,
+        chosenSessions: sessions,
+        chosenSources: SOURCE_OPTIONS,
+        chosenPLLs: Const.PllCases,
+        chosenOLLs: Const.OllCases,
+        solveCleanliness: Const.solveCleanliness,
+        solveLuckiness: Const.solveLuckiness,
+        autoWindowSize: true,
+        autoBenchmarks: true,
+        ...bench,
+        useLogScale: false,
+        use4SegmentTiming: false,
+    };
+}
+
 export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelState> {
     state: FilterPanelState = {
         allSolves: [],
@@ -38,126 +79,48 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         lastAppliedSolves: [],
         lastAppliedFilters: null,
         lastAppliedWindowSize: Const.DefaultWindowSize,
-        filters: {
-            sources: ['cubeast', 'acubemy'],
-            ...defaultDateRange(),
-            fastestTime: 0,
-            slowestTime: 300,
-            crossColors: [CrossColor.White, CrossColor.Yellow, CrossColor.Blue, CrossColor.Green, CrossColor.Orange, CrossColor.Red, CrossColor.Unknown],
-            pllCases: Const.PllCases.map(x => x.value),
-            ollCases: Const.OllCases.map(x => x.value),
-            steps: [StepName.Cross, StepName.F2L_1, StepName.F2L_2, StepName.F2L_3, StepName.F2L_4, StepName.OLL, StepName.PLL],
-            solveCleanliness: Const.solveCleanliness.map(x => x.value),
-            solveLuckiness: Const.solveLuckiness.map(x => x.value),
-            method: MethodName.CFOP,
-            sessions: [],
-            lowestInspection: 0,
-            highestInspection: 300
-        },
-        chosenSteps: FilterPanel.getStepOptionsForMethod(MethodName.CFOP),
-        chosenColors: [
-            { label: CrossColor.White, value: CrossColor.White },
-            { label: CrossColor.Yellow, value: CrossColor.Yellow },
-            { label: CrossColor.Red, value: CrossColor.Red },
-            { label: CrossColor.Orange, value: CrossColor.Orange },
-            { label: CrossColor.Blue, value: CrossColor.Blue },
-            { label: CrossColor.Green, value: CrossColor.Green },
-            { label: CrossColor.Unknown, value: CrossColor.Unknown },
-        ],
-        chosenSessions: [],
-        chosenSources: [
-            { label: 'Cubeast', value: 'cubeast' },
-            { label: 'Acubemy', value: 'acubemy' }
-        ],
-        solveCleanliness: Const.solveCleanliness,
-        solveLuckiness: Const.solveLuckiness,
-        chosenPLLs: Const.PllCases,
-        chosenOLLs: Const.OllCases,
+        ...defaultSelections(MethodName.CFOP, [], { goodTime: 15, badTime: 20 }),
         tabKey: 1,
-        autoWindowSize: true,
-        autoBenchmarks: true,
         windowSize: Const.DefaultWindowSize,
         pointsPerGraph: 100,
         showFilters: false,
         showTestAlert: false,
-        badTime: 20,
-        goodTime: 15,
         method: { label: MethodName.CFOP, value: MethodName.CFOP },
-        useLogScale: false,
-        use4SegmentTiming: false
     }
 
     static passesFilters(solve: Solve, filters: Filters) {
-        if (solve.isCorrupt) {
-            return false;
-        }
-        if (solve.method != filters.method) {
-            return false;
-        }
-        if (filters.sources.indexOf(solve.source) < 0) {
-            return false;
-        }
-        if (filters.crossColors.indexOf(solve.crossColor) < 0) {
-            return false;
-        }
-        if (solve.date < filters.startDate || solve.date > filters.endDate) {
-            return false;
-        }
-        if (solve.time < filters.fastestTime || solve.time > filters.slowestTime) {
-            return false;
-        }
+        if (solve.isCorrupt) return false;
+        if (solve.method != filters.method) return false;
+        if (filters.sources.indexOf(solve.source) < 0) return false;
+        if (filters.crossColors.indexOf(solve.crossColor) < 0) return false;
+        if (solve.date < filters.startDate || solve.date > filters.endDate) return false;
+        if (solve.time < filters.fastestTime || solve.time > filters.slowestTime) return false;
         // Acubemy exports may not report inspection time. Those solves should not be excluded by inspection filters.
-        if (solve.inspectionTime != null) {
-            if (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection) {
-                return false;
-            }
-        }
+        if (solve.inspectionTime != null && (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection)) return false;
         // Only filter by session when the solve has a session set; avoids excluding rows where session wasn't parsed (e.g. CSV column alignment).
-        if (filters.sessions.length > 0 && (solve.session !== '' && solve.session != null) && filters.sessions.indexOf(solve.session) < 0) {
-            return false;
-        }
+        if (filters.sessions.length > 0 && (solve.session !== '' && solve.session != null) && filters.sessions.indexOf(solve.session) < 0) return false;
 
         // TODO: check case logic properly
         const pllStep = getStep(solve, StepName.PLL);
-        if (solve.method == MethodName.CFOP && pllStep?.case !== undefined && filters.pllCases.indexOf(pllStep.case) < 0) {
-            return false;
-        }
+        if (solve.method == MethodName.CFOP && pllStep?.case !== undefined && filters.pllCases.indexOf(pllStep.case) < 0) return false;
         const ollStep = getStep(solve, StepName.OLL);
-        if (solve.method == MethodName.CFOP && ollStep?.case !== undefined && filters.ollCases.indexOf(ollStep.case) < 0) {
-            return false;
-        }
+        if (solve.method == MethodName.CFOP && ollStep?.case !== undefined && filters.ollCases.indexOf(ollStep.case) < 0) return false;
 
         // If total time or any step is 3 standard deviations away, remove it
-        if (filters.solveCleanliness.indexOf(SolveCleanliness.Clean) < 0 && !solve.isMistake) {
-            return false;
-        }
-        if (filters.solveCleanliness.indexOf(SolveCleanliness.Mistake) < 0 && solve.isMistake) {
-            return false;
-        }
-
-        if (filters.solveLuckiness.indexOf(SolveLuckiness.FullStep) < 0 && solve.isFullStep) {
-            return false;
-        }
-        if (filters.solveLuckiness.indexOf(SolveLuckiness.Skip) < 0 && !solve.isFullStep) {
-            return false;
-        }
+        if (filters.solveCleanliness.indexOf(solve.isMistake ? SolveCleanliness.Mistake : SolveCleanliness.Clean) < 0) return false;
+        if (filters.solveLuckiness.indexOf(solve.isFullStep ? SolveLuckiness.FullStep : SolveLuckiness.Skip) < 0) return false;
 
         return true;
     }
 
     static getMistakeMap(values: number[], windowSize: number): boolean[] {
-        let average = calculateMovingAverage(values, windowSize);
-        let stdDev = calculateMovingStdDev(values, windowSize);
+        const average = calculateMovingAverage(values, windowSize);
+        const stdDev = calculateMovingStdDev(values, windowSize);
 
-        let mistakes: boolean[] = [];
-
-        for (let i = 0; i < values.length; i++) {
-            let index = Math.max(0, i - windowSize);
-            let isMistake = values[i] > (average[index] + (3 * stdDev[index]));
-            mistakes.push(isMistake);
-        }
-
-        return mistakes;
+        return values.map((value, i) => {
+            const index = Math.max(0, i - windowSize);
+            return value > average[index] + (3 * stdDev[index]);
+        });
     }
 
     // For each step, check if it is 3 standard deviations more than the average
@@ -166,112 +129,65 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             return [];
         }
 
-        let mistakes: boolean[][] = [];
-
-        mistakes.push(this.getMistakeMap(allSolves.map(x => x.time), windowSize));
+        const mistakes: boolean[][] = [this.getMistakeMap(allSolves.map(x => x.time), windowSize)];
         allSolves[0].steps.forEach(({ name }, i) => {
             // Steps are usually in the same slot in every solve, so check that slot before scanning.
             const times = allSolves.map(x => (x.steps[i]?.name === name ? x.steps[i] : x.steps.find(s => s.name === name))?.time ?? 0);
             mistakes.push(this.getMistakeMap(times, windowSize));
         });
 
-        let newSolves: Solve[] = [];
-
-        for (let i = 0; i < allSolves.length; i++) {
-            newSolves.push(allSolves[i]);
-            newSolves[i].isMistake = false;
-            for (let j = 0; j < mistakes.length; j++) {
-                if (mistakes[j][i]) {
-                    newSolves[i].isMistake = true;
-                    continue;
-                }
-            }
-        }
-
-        return newSolves;
+        allSolves.forEach((solve, i) => { solve.isMistake = mistakes.some(map => map[i]); });
+        return allSolves;
     }
 
     static markAllLuckiness(allSolves: Solve[]): Solve[] {
-        let newSolves: Solve[] = [];
-
-        for (let i = 0; i < allSolves.length; i++) {
-            newSolves.push(allSolves[i]);
-            let numSteps = Const.MethodSteps[newSolves[i].method].length;
-            for (let j = 0; j < numSteps; j++) {
-                if (newSolves[i].steps[j].executionTime === 0) {
-                    newSolves[i].isFullStep = false;
-                    break;
-                }
+        for (const solve of allSolves) {
+            const numSteps = Const.MethodSteps[solve.method].length;
+            // A skipped step takes no time to execute. Only ever clears the flag,
+            // so a solve already known not to be full step stays that way.
+            if (solve.steps.some((step, i) => i < numSteps && step.executionTime === 0)) {
+                solve.isFullStep = false;
             }
         }
 
-        return newSolves;
+        return allSolves;
     }
 
     static applyFiltersToSolves(allSolves: Solve[], filters: Filters, windowSize: number): Solve[] {
-        let solvesWithMistakesMarked = this.markAllMistakes(allSolves, windowSize);
-        let solvesWithLuckinessMarked = this.markAllLuckiness(solvesWithMistakesMarked);
-
-        let filteredSolves: Solve[] = [];
-        solvesWithLuckinessMarked.forEach(x => {
-            if (this.passesFilters(x, filters)) {
-                filteredSolves.push(x);
-            }
-        })
-
-        return filteredSolves;
+        const marked = this.markAllLuckiness(this.markAllMistakes(allSolves, windowSize));
+        return marked.filter(x => this.passesFilters(x, filters));
     }
 
     static compressSolves(solves: Solve[], steps: StepName[]): Solve[] {
-        let newSolves: Solve[] = [];
+        return solves.map((solve) => {
+            const newSteps: Step[] = solve.steps.filter((x) => steps.find((y) => y === x.name));
 
-        solves.forEach((solve) => {
-            let newSteps: Step[] = solve.steps.filter((x) => steps.find((y) => y === x.name));
-
-            const stepExecutionTime = newSteps.reduce((sum, current) => sum + current.executionTime, 0);
-            const stepRecognitionTime = newSteps.reduce((sum, current) => sum + current.recognitionTime, 0);
-            const stepPreAufTime = newSteps.reduce((sum, current) => sum + current.preAufTime, 0);
-            const stepPostAufTime = newSteps.reduce((sum, current) => sum + current.postAufTime, 0);
-            const stepTime = newSteps.reduce((sum, current) => sum + current.time, 0);
-            const stepTurns = newSteps.reduce((sum, current) => sum + current.turns, 0);
-
-            const turns = stepTurns > 0 ? stepTurns : solve.turns;
-
-            let tps: number;
-            if (stepTime > 0 && turns > 0) {
-                tps = turns / stepTime;
-            } else {
-                tps = solve.tps;
+            let stepTime = 0, stepTurns = 0, execution = 0, recognition = 0, preAuf = 0, postAuf = 0;
+            for (const step of newSteps) {
+                stepTime += step.time;
+                stepTurns += step.turns;
+                execution += step.executionTime;
+                recognition += step.recognitionTime;
+                preAuf += step.preAufTime;
+                postAuf += step.postAufTime;
             }
 
-            let newSolve: Solve = {
-                id: solve.id,
-                source: solve.source,
-                rawSourceId: solve.rawSourceId,
-                rawSource: solve.rawSource,
+            const turns = stepTurns > 0 ? stepTurns : solve.turns;
+            const tps = stepTime > 0 && turns > 0 ? turns / stepTime : solve.tps;
+
+            // Every other field is carried over untouched.
+            return {
+                ...solve,
                 time: stepTime,
-                date: solve.date,
-                crossColor: solve.crossColor,
-                scramble: solve.scramble,
-                tps: tps,
-                inspectionTime: solve.inspectionTime,
-                recognitionTime: stepRecognitionTime,
-                executionTime: stepExecutionTime,
-                preAufTime: stepPreAufTime,
-                postAufTime: stepPostAufTime,
-                turns: turns,
+                tps,
+                recognitionTime: recognition,
+                executionTime: execution,
+                preAufTime: preAuf,
+                postAufTime: postAuf,
+                turns,
                 steps: newSteps,
-                isCorrupt: solve.isCorrupt,
-                method: solve.method,
-                session: solve.session,
-                isMistake: solve.isMistake,
-                isFullStep: solve.isFullStep
             };
-
-            newSolves.push(newSolve);
         });
-
-        return newSolves;
     }
 
     static getDerivedStateFromProps(nextProps: FilterPanelProps, prevState: FilterPanelState) {
@@ -280,71 +196,11 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             prevState.filters === prevState.lastAppliedFilters &&
             prevState.windowSize === prevState.lastAppliedWindowSize;
 
-        if (inputsUnchanged) {
-            return {
-                allSolves: nextProps.solves,
-                filteredSolves: prevState.filteredSolves,
-                compressedSolves: prevState.compressedSolves,
-                lastAppliedSolves: prevState.lastAppliedSolves,
-                lastAppliedFilters: prevState.lastAppliedFilters,
-                lastAppliedWindowSize: prevState.lastAppliedWindowSize,
-                method: prevState.method,
-                chosenSteps: prevState.chosenSteps,
-                filters: prevState.filters,
-                chosenColors: prevState.chosenColors,
-                chosenPLLs: prevState.chosenPLLs,
-                chosenOLLs: prevState.chosenOLLs,
-                chosenSessions: prevState.chosenSessions,
-                chosenSources: prevState.chosenSources,
-                tabKey: prevState.tabKey,
-                autoWindowSize: prevState.autoWindowSize,
-                autoBenchmarks: prevState.autoBenchmarks,
-                windowSize: prevState.windowSize,
-                pointsPerGraph: prevState.pointsPerGraph,
-                showFilters: prevState.showFilters,
-                showTestAlert: prevState.showTestAlert,
-                solveCleanliness: prevState.solveCleanliness,
-                solveLuckiness: prevState.solveLuckiness,
-                badTime: prevState.badTime,
-                goodTime: prevState.goodTime,
-                useLogScale: prevState.useLogScale,
-                use4SegmentTiming: prevState.use4SegmentTiming
-            };
-        }
+        // Everything carries over; only the incoming solves and whatever depends
+        // on them is recomputed below.
+        const newState: FilterPanelState = { ...prevState, allSolves: nextProps.solves };
+        if (inputsUnchanged) return newState;
 
-        let newState: FilterPanelState = {
-            // Assume all props stay the same
-            allSolves: prevState.allSolves,
-            filteredSolves: prevState.filteredSolves,
-            compressedSolves: prevState.compressedSolves,
-            lastAppliedSolves: prevState.lastAppliedSolves,
-            lastAppliedFilters: prevState.lastAppliedFilters,
-            lastAppliedWindowSize: prevState.lastAppliedWindowSize,
-            method: prevState.method,
-            chosenSteps: prevState.chosenSteps,
-            filters: prevState.filters,
-            chosenColors: prevState.chosenColors,
-            chosenPLLs: prevState.chosenPLLs,
-            chosenOLLs: prevState.chosenOLLs,
-            chosenSessions: prevState.chosenSessions,
-            chosenSources: prevState.chosenSources,
-            tabKey: prevState.tabKey,
-            autoWindowSize: prevState.autoWindowSize,
-            autoBenchmarks: prevState.autoBenchmarks,
-            windowSize: prevState.windowSize,
-            pointsPerGraph: prevState.pointsPerGraph,
-            showFilters: prevState.showFilters,
-            showTestAlert: prevState.showTestAlert,
-            solveCleanliness: prevState.solveCleanliness,
-            solveLuckiness: prevState.solveLuckiness,
-            badTime: prevState.badTime,
-            goodTime: prevState.goodTime,
-            useLogScale: prevState.useLogScale,
-            use4SegmentTiming: prevState.use4SegmentTiming
-        }
-
-        // Update anything that needs it
-        newState.allSolves = nextProps.solves;
         const solvesChanged = nextProps.solves !== prevState.lastAppliedSolves;
         if (solvesChanged) {
             if (nextProps.suggestedMethod !== undefined) {
@@ -546,53 +402,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     hideFilters() { this.setField('showFilters', false); }
 
     resetFilters() {
-        const allSessions = CalculateAllSessionOptions(this.state.allSolves);
-        const method = this.state.method;
-        const methodName = method.value as MethodName;
-        const bench = CalculateBenchmarkTimes(this.state.allSolves);
-        this.setState({
-            filters: {
-                sources: ['cubeast', 'acubemy'],
-                ...defaultDateRange(),
-                fastestTime: 0,
-                slowestTime: 300,
-                crossColors: [CrossColor.White, CrossColor.Yellow, CrossColor.Blue, CrossColor.Green, CrossColor.Orange, CrossColor.Red, CrossColor.Unknown],
-                pllCases: Const.PllCases.map(x => x.value),
-                ollCases: Const.OllCases.map(x => x.value),
-                steps: Const.MethodSteps[methodName],
-                solveCleanliness: Const.solveCleanliness.map(x => x.value),
-                solveLuckiness: Const.solveLuckiness.map(x => x.value),
-                method: methodName,
-                sessions: allSessions.map(x => x.value),
-                lowestInspection: 0,
-                highestInspection: 300,
-            },
-            chosenSteps: FilterPanel.getStepOptionsForMethod(methodName),
-            chosenColors: [
-                { label: CrossColor.White, value: CrossColor.White },
-                { label: CrossColor.Yellow, value: CrossColor.Yellow },
-                { label: CrossColor.Red, value: CrossColor.Red },
-                { label: CrossColor.Orange, value: CrossColor.Orange },
-                { label: CrossColor.Blue, value: CrossColor.Blue },
-                { label: CrossColor.Green, value: CrossColor.Green },
-                { label: CrossColor.Unknown, value: CrossColor.Unknown },
-            ],
-            chosenSessions: allSessions,
-            chosenSources: [
-                { label: 'Cubeast', value: 'cubeast' },
-                { label: 'Acubemy', value: 'acubemy' },
-            ],
-            chosenPLLs: Const.PllCases,
-            chosenOLLs: Const.OllCases,
-            solveCleanliness: Const.solveCleanliness,
-            solveLuckiness: Const.solveLuckiness,
-            autoWindowSize: true,
-            autoBenchmarks: true,
-            badTime: bench.badTime,
-            goodTime: bench.goodTime,
-            useLogScale: false,
-            use4SegmentTiming: false,
-        });
+        const solves = this.state.allSolves;
+        this.setState(defaultSelections(this.state.method.value as MethodName, CalculateAllSessionOptions(solves), CalculateBenchmarkTimes(solves)));
     }
 
     hideAlert() {
@@ -600,12 +411,9 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     createTooltip(description: string) {
-        const tooltip = (
-            <Tooltip id="tooltip">
-                {description}
-            </Tooltip>
+        return (
+            <Tooltip id="tooltip">{description}</Tooltip>
         );
-        return tooltip;
     }
 
     createFilterHtml(filter: JSX.Element, title: string, tooltip: string): JSX.Element {
@@ -787,7 +595,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.multiFilter(
-                        [{ label: 'Cubeast', value: 'cubeast' }, { label: 'Acubemy', value: 'acubemy' }],
+                        SOURCE_OPTIONS,
                         this.state.chosenSources, this.sourcesChanged.bind(this),
                         "Source",
                         "Choose which sources (Cubeast or Acubemy) to include in the analysis."

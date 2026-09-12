@@ -1,45 +1,10 @@
-import {
-    calculateMovingAverage,
-    calculateMovingPercentage,
-    calculateMovingAverageChopped,
-    makeLabels,
-    reduceDataset,
-} from '../Helpers/MathHelpers';
-import {
-    buildRunningAverageData,
-    buildRunningStdDevData,
-    buildRunningTpsData,
-    buildRunningInspectionData,
-    buildRunningTurnsData,
-    buildRunningRecognitionExecution,
-    buildHistogramData,
-    buildGoodBadData,
-    buildRunningColorPercentages,
-    buildStepPercentages,
-    buildOllCategoryChart,
-    buildPllCategoryChart,
-    buildInspectionData,
-    shouldShowInspectionCharts,
-    buildTypicalCompare,
-} from '../Helpers/ChartDataBuilders';
+import { calculateMovingAverage, calculateMovingPercentage, calculateMovingAverageChopped, makeLabels, reduceDataset } from '../Helpers/MathHelpers';
+import { buildRunningAverageData, buildRunningStdDevData, buildRunningTpsData, buildRunningInspectionData, buildRunningTurnsData, buildRunningRecognitionExecution, buildHistogramData, buildGoodBadData, buildRunningColorPercentages, buildStepPercentages, buildOllCategoryChart, buildPllCategoryChart, buildInspectionData, shouldShowInspectionCharts, buildTypicalCompare } from '../Helpers/ChartDataBuilders';
 import { applyPaletteToChartData, SEGMENT_COLORS } from '../Helpers/ChartColors';
 import { analyzeStepMoves, computeCaseFailureStats, computeSolveEfficiency } from '../Helpers/MoveAnalysis';
 import { getAufMovesForSolve } from '../Helpers/CsvParser';
 import { Const } from '../Helpers/Constants';
-import {
-    AlgoPracticeRow,
-    CaseStats,
-    ChartDataBundle,
-    FastestSolve,
-    LabelledChart,
-    getStep,
-    MethodName,
-    RecordRow,
-    Solve,
-    StepName,
-    StreakData,
-    StreakRow,
-} from '../Helpers/Types';
+import { AlgoPracticeRow, CaseStats, ChartDataBundle, FastestSolve, LabelledChart, getStep, MethodName, RecordRow, Solve, StepName, StreakData, StreakRow } from '../Helpers/Types';
 
 export interface WorkerInput {
     requestId: number;

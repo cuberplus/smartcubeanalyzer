@@ -14,6 +14,9 @@ coverage for line count. Measure before and after:
 
 ## Releasing
 
+**Never bump, commit, push, or deploy without asking the user first.** Wait for
+explicit approval each time, even when the work is finished and green.
+
 Bump `APP_VERSION` in `src/Helpers/Version.ts` by hand before every deploy — it
 is shown at the bottom of the page and is how a release is confirmed live. Then
 commit, push to `master`, and `npm run deploy` (publishes `build/` to
