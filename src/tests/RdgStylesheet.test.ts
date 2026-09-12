@@ -21,8 +21,11 @@ const INDEX_HTML = join(ROOT, 'public', 'index.html');
 const CHART_PANEL = join(ROOT, 'src', 'Components', 'ChartPanel.tsx');
 
 describe('the vendored react-data-grid stylesheet', () => {
+    /** git may check the copy out with CRLF, which the browser does not care about. */
+    const read = (file: string): string => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+
     test('is identical to the one the installed package ships', () => {
-        expect(readFileSync(VENDORED, 'utf8')).toBe(readFileSync(PACKAGED, 'utf8'));
+        expect(read(VENDORED)).toBe(read(PACKAGED));
     });
 
     test('is linked from index.html so the build copies it verbatim', () => {
