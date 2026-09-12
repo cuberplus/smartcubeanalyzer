@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/smartcubeanalyzer/static/css/main.2fd8d499.css",
-    "main.js": "/smartcubeanalyzer/static/js/main.a65bb04a.js",
+    "main.js": "/smartcubeanalyzer/static/js/main.c06d5f8f.js",
     "static/js/425.4132a284.chunk.js": "/smartcubeanalyzer/static/js/425.4132a284.chunk.js",
     "static/media/CubeastCsv.png": "/smartcubeanalyzer/static/media/CubeastCsv.9bdabd9952094f75b181.png",
     "static/media/AcubemyCsv.png": "/smartcubeanalyzer/static/media/AcubemyCsv.8519a9c97f8c6e61edca.png",
@@ -9,11 +9,11 @@
     "static/media/AnalyzerSteps.png": "/smartcubeanalyzer/static/media/AnalyzerSteps.2ccc203bc280eef17e48.png",
     "index.html": "/smartcubeanalyzer/index.html",
     "main.2fd8d499.css.map": "/smartcubeanalyzer/static/css/main.2fd8d499.css.map",
-    "main.a65bb04a.js.map": "/smartcubeanalyzer/static/js/main.a65bb04a.js.map",
+    "main.c06d5f8f.js.map": "/smartcubeanalyzer/static/js/main.c06d5f8f.js.map",
     "425.4132a284.chunk.js.map": "/smartcubeanalyzer/static/js/425.4132a284.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.2fd8d499.css",
-    "static/js/main.a65bb04a.js"
+    "static/js/main.c06d5f8f.js"
   ]
 }
