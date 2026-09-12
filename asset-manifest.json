@@ -1,19 +1,19 @@
 {
   "files": {
-    "main.css": "/smartcubeanalyzer/static/css/main.7e6124ac.css",
-    "main.js": "/smartcubeanalyzer/static/js/main.83e9f7f8.js",
-    "static/js/425.5f04d4ad.chunk.js": "/smartcubeanalyzer/static/js/425.5f04d4ad.chunk.js",
+    "main.css": "/smartcubeanalyzer/static/css/main.fd2a5b06.css",
+    "main.js": "/smartcubeanalyzer/static/js/main.3ba9ae90.js",
+    "static/js/425.7092a1e4.chunk.js": "/smartcubeanalyzer/static/js/425.7092a1e4.chunk.js",
     "static/media/CubeastCsv.png": "/smartcubeanalyzer/static/media/CubeastCsv.9bdabd9952094f75b181.png",
     "static/media/AcubemyCsv.png": "/smartcubeanalyzer/static/media/AcubemyCsv.8519a9c97f8c6e61edca.png",
     "static/media/CubeastDownload.png": "/smartcubeanalyzer/static/media/CubeastDownload.0e1f2eb5dc8b36075133.png",
     "static/media/AnalyzerSteps.png": "/smartcubeanalyzer/static/media/AnalyzerSteps.2ccc203bc280eef17e48.png",
     "index.html": "/smartcubeanalyzer/index.html",
-    "main.7e6124ac.css.map": "/smartcubeanalyzer/static/css/main.7e6124ac.css.map",
-    "main.83e9f7f8.js.map": "/smartcubeanalyzer/static/js/main.83e9f7f8.js.map",
-    "425.5f04d4ad.chunk.js.map": "/smartcubeanalyzer/static/js/425.5f04d4ad.chunk.js.map"
+    "main.fd2a5b06.css.map": "/smartcubeanalyzer/static/css/main.fd2a5b06.css.map",
+    "main.3ba9ae90.js.map": "/smartcubeanalyzer/static/js/main.3ba9ae90.js.map",
+    "425.7092a1e4.chunk.js.map": "/smartcubeanalyzer/static/js/425.7092a1e4.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.7e6124ac.css",
-    "static/js/main.83e9f7f8.js"
+    "static/css/main.fd2a5b06.css",
+    "static/js/main.3ba9ae90.js"
   ]
 }
