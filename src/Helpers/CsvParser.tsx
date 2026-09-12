@@ -249,20 +249,24 @@ export function stripRotationsFromMoveString(movesString: string | undefined | n
 }
 
 /**
- * A Step while it is still being parsed. Cubeast supplies per-move timings and a cumulative
- * time that are only needed to derive the real step timings, so they are stripped afterwards.
+ * A Cubeast row while it is being parsed. Move timings and the cumulative time are only
+ * needed to derive real step timings, so they live here for the duration of one row
+ * rather than on the Step itself - putting them on the Step and deleting them afterwards
+ * drops every Step into V8's dictionary mode, which slows down all later chart work.
  */
-interface ParsingStep extends Step {
-    _moveTimings?: MoveTiming[];
-    _csvCumulativeTimeSec?: number;
+interface RowScratch {
+    moves: (MoveTiming[] | null)[];
+    cumulativeSec: number[];
 }
+
+type ColumnSetter = (obj: Solve, value: string, scratch: RowScratch) => void;
 
 function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     // Separators inside [...] (e.g. step case "[FL,BR]->FR 30") are skipped while splitting,
     // which avoids rewriting the whole 45MB export before it can be parsed.
     const splitterCode = splitter.charCodeAt(0);
-    const [headerLine, ...rest] = stringVal.trim().split("\n");
-    const keys = splitCsvLine(headerLine, splitterCode);
+    const headerEnd = stringVal.indexOf("\n");
+    const keys = splitCsvLine((headerEnd < 0 ? stringVal : stringVal.slice(0, headerEnd)).trim(), splitterCode);
 
     const keyMap: { [key: string]: (obj: Solve, value: string) => void } = {
         "id": (obj, value) => { obj.id = value; obj.rawSourceId = value; obj.source = 'cubeast'; },
@@ -285,7 +289,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "session_name": (obj, value) => { obj.session = value; },
     };
 
-    const stepKeyMap: { [key: string]: (step: ParsingStep, value: string) => void } = {
+    const stepKeyMap: { [key: string]: (step: Step, value: string) => void } = {
         "name": (step, value) => { step.name = value as StepName; },
         "slice_turns": (step, value) => { step.turns = Number(value); },
         "time": (step, value) => { step.time = Number(value) / 1000; },
@@ -293,133 +297,141 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         "turns_per_second": (step, value) => { step.tps = Number(value); },
         "recognition_time": (step, value) => { step.recognitionTime = Number(value) / 1000; },
         "execution_time": (step, value) => { step.executionTime = Number(value) / 1000; },
-        "cumulative_time": (step, value) => {
-            const sec = Number(value) / 1000;
-            if (Number.isFinite(sec) && sec >= 0) {
-                step._csvCumulativeTimeSec = sec;
-            }
-        },
-        "recorded_moves": (step, value) => {
-            const moveTimings = parseRecordedMoves(value);
-            if (moveTimings.length > 0) {
-                step._moveTimings = moveTimings;
-            }
-        },
     };
 
     // Resolve each header column to its setter once, instead of re-parsing the key on every row.
     const TIME_COLUMNS: { [key: string]: number } = { "time": 0, "pickup_time": 1, "putdown_time": 2, "solving_time": 3 };
-    const columnSetters = keys.map((key): ((obj: Solve, value: string) => void) | undefined => {
+    const columnSetters = keys.map((key): ColumnSetter | undefined => {
         if (!key.startsWith("step_")) return keyMap[key];
         const stepIndex = +key[5];
-        const setStep = stepKeyMap[key.split("_").slice(2).join("_")];
+        const stepKey = key.split("_").slice(2).join("_");
+        if (stepKey === "recorded_moves") {
+            return (obj, value, scratch) => {
+                const moveTimings = parseRecordedMoves(value);
+                if (moveTimings.length > 0) scratch.moves[stepIndex] = moveTimings;
+            };
+        }
+        if (stepKey === "cumulative_time") {
+            return (obj, value, scratch) => {
+                const sec = Number(value) / 1000;
+                if (Number.isFinite(sec) && sec >= 0) scratch.cumulativeSec[stepIndex] = sec;
+            };
+        }
+        const setStep = stepKeyMap[stepKey];
         return setStep ? (obj, value) => setStep(obj.steps[stepIndex], value) : undefined;
     });
     const timeColumns = keys.map((key) => TIME_COLUMNS[key] ?? -1);
+    const columnCount = columnSetters.length;
 
-    let formedArr = rest.map((line) => {
-        // Rows are split one at a time so the whole file is never held as cell strings at once.
-        const item = splitCsvLine(line, splitterCode);
-        let obj = GetEmptySolve();
+    const formedArr: Solve[] = [];
+    const stepCount = GetEmptySolve().steps.length;
+    // Reused across rows; the parser is single threaded, so one set of scratch buffers is enough.
+    const scratch: RowScratch = { moves: new Array(stepCount).fill(null), cumulativeSec: new Array(stepCount).fill(-1) };
+    const times = [0, 0, 0, 0];
+    const total = stringVal.length;
 
-        // Track Cubeast time/pickup/putdown/solving times (ms) while parsing a row.
-        const times = [0, 0, 0, 0];
+    for (let lineStart = headerEnd + 1; lineStart < total;) {
+        let lineEnd = stringVal.indexOf("\n", lineStart);
+        if (lineEnd < 0) lineEnd = total;
+        // Exports are CRLF, so drop the carriage return rather than leaving it on the last cell.
+        let end = lineEnd;
+        if (end > lineStart && stringVal.charCodeAt(end - 1) === 13) end--;
+        if (end <= lineStart) { lineStart = lineEnd + 1; continue; }
 
-        for (let index = 0; index < columnSetters.length; index++) {
-            const value = item[index];
-            const timeColumn = timeColumns[index];
-            if (timeColumn >= 0) times[timeColumn] = Number(value) || 0;
-            columnSetters[index]?.(obj, value);
+        const obj = GetEmptySolve();
+        for (let i = 0; i < stepCount; i++) { scratch.moves[i] = null; scratch.cumulativeSec[i] = -1; }
+        times[0] = times[1] = times[2] = times[3] = 0;
+
+        // Walk the row once, only materialising the cells that something actually reads.
+        // Two thirds of Cubeast's 164 columns are ignored, so skipping those slices matters.
+        // Separators inside [...] (step cases such as "[FL,BR]->FR 30") are not cell boundaries.
+        let depth = 0, cellStart = lineStart, index = 0;
+        for (let i = lineStart; i <= end; i++) {
+            const c = i === end ? splitterCode : stringVal.charCodeAt(i);
+            if (c === 91) depth++;
+            else if (c === 93) depth--;
+            else if (c === splitterCode && depth === 0) {
+                if (index < columnCount) {
+                    const setter = columnSetters[index];
+                    const timeColumn = timeColumns[index];
+                    if (setter !== undefined || timeColumn >= 0) {
+                        const value = stringVal.slice(cellStart, i);
+                        if (timeColumn >= 0) times[timeColumn] = Number(value) || 0;
+                        setter?.(obj, value, scratch);
+                    }
+                }
+                index++;
+                cellStart = i + 1;
+            }
         }
+
         const [rawTimeMs, pickupTimeMs, putdownTimeMs, solvingTimeMs] = times;
 
         // After parsing the row, adjust Cubeast Solve.time to represent in-hand time:
-        // 1) Prefer solving_time when present and > 0.
-        // 2) Else, if we have time plus pickup/putdown, subtract them.
-        // 3) Else, fall back to raw time.
+        // prefer solving_time, else subtract pickup/putdown from time, else use raw time.
         if (obj.source === 'cubeast') {
-            let finalMs: number | null = null;
-            if (solvingTimeMs > 0) {
-                finalMs = solvingTimeMs;
-            } else if (rawTimeMs > 0 && (pickupTimeMs > 0 || putdownTimeMs > 0)) {
-                finalMs = rawTimeMs - pickupTimeMs - putdownTimeMs;
-            } else if (rawTimeMs > 0) {
-                finalMs = rawTimeMs;
-            }
-
-            if (finalMs != null) {
-                const sec = finalMs / 1000;
-                obj.time = sec;
-                if (sec < 1) {
-                    obj.isCorrupt = true;
-                }
+            const finalMs = solvingTimeMs > 0 ? solvingTimeMs
+                : rawTimeMs > 0 ? rawTimeMs - pickupTimeMs - putdownTimeMs
+                : 0;
+            if (finalMs !== 0) {
+                obj.time = finalMs / 1000;
+                if (obj.time < 1) obj.isCorrupt = true;
             }
         }
 
         let prevEndTsMs: number | null = null;
+        let recognitionTotal = 0, executionTotal = 0, preAufTotal = 0, postAufTotal = 0, turnsTotal = 0;
         for (let i = 0; i < obj.steps.length; i++) {
-            const step: ParsingStep = obj.steps[i];
-            const moveTimings = step._moveTimings;
-            if (moveTimings && moveTimings.length > 0) {
-                const csvCumulativeSec = step._csvCumulativeTimeSec;
-                const csvCrossExecFallback =
-                    step.name === StepName.Cross
-                        ? step.executionTime > 0
-                            ? step.executionTime
-                            : csvCumulativeSec != null && csvCumulativeSec > 0
-                              ? csvCumulativeSec
-                              : 0
-                        : 0;
+            const step = obj.steps[i];
+            const moveTimings = scratch.moves[i];
+            if (moveTimings !== null && moveTimings.length > 0) {
+                const isCross = step.name === StepName.Cross;
+                const csvCumulativeSec = scratch.cumulativeSec[i];
+                const crossExecFallback = !isCross ? 0
+                    : step.executionTime > 0 ? step.executionTime
+                    : Math.max(csvCumulativeSec, 0);
                 const seg = computeStepSegments(moveTimings, prevEndTsMs, step.name);
                 step.recognitionTime = seg.recognition;
                 step.preAufTime = seg.preAuf;
                 step.postAufTime = seg.postAuf;
                 const segmentExec = seg.preAuf + seg.coreExecution + seg.postAuf;
-                step.executionTime =
-                    step.name === StepName.Cross
-                        ? effectiveCrossExecutionSec(
-                              moveTimings,
-                              segmentExec,
-                              csvCrossExecFallback
-                          )
-                        : segmentExec;
+                step.executionTime = isCross
+                    ? effectiveCrossExecutionSec(moveTimings, segmentExec, crossExecFallback)
+                    : segmentExec;
                 step.time = step.recognitionTime + step.executionTime;
-                step.moves = moveTimings.map((m) => m.move).join(" ");
+                let moves = moveTimings[0].move;
+                for (let m = 1; m < moveTimings.length; m++) moves += " " + moveTimings[m].move;
+                step.moves = moves;
                 step.turns = moveTimings.length;
-                if (step.time > 0 && step.turns > 0) {
-                    step.tps = step.turns / step.time;
-                }
-                delete step._csvCumulativeTimeSec;
-                if (moveTimings.length > 0) {
-                    prevEndTsMs = moveTimings[moveTimings.length - 1].timestamp;
-                }
+                if (step.time > 0) step.tps = step.turns / step.time;
+                prevEndTsMs = moveTimings[moveTimings.length - 1].timestamp;
             } else {
                 step.preAufTime = 0;
                 step.postAufTime = 0;
-                delete step._moveTimings;
-                delete step._csvCumulativeTimeSec;
                 if (prevEndTsMs != null && step.time > 0) {
                     prevEndTsMs += step.time * 1000;
                 }
             }
+            recognitionTotal += step.recognitionTime;
+            executionTotal += step.executionTime;
+            preAufTotal += step.preAufTime;
+            postAufTotal += step.postAufTime;
+            turnsTotal += step.turns;
         }
-        obj.recognitionTime = obj.steps.reduce((s, st) => s + st.recognitionTime, 0);
-        obj.executionTime = obj.steps.reduce((s, st) => s + st.executionTime, 0);
-        obj.preAufTime = obj.steps.reduce((s, st) => s + st.preAufTime, 0);
-        obj.postAufTime = obj.steps.reduce((s, st) => s + st.postAufTime, 0);
-        obj.turns = obj.steps.reduce((s, st) => s + st.turns, 0);
+        obj.recognitionTime = recognitionTotal;
+        obj.executionTime = executionTotal;
+        obj.preAufTime = preAufTotal;
+        obj.postAufTime = postAufTotal;
+        obj.turns = turnsTotal;
 
         obj.source = 'cubeast';
         obj.rawSource = 'cubeast';
 
-        return obj;
-    });
+        formedArr.push(obj);
+        lineStart = lineEnd + 1;
+    }
 
-    formedArr = formedArr.sort((a: Solve, b: Solve) => {
-        return a.date.getTime() - b.date.getTime();
-    });
-
-    return formedArr;
+    return formedArr.sort((a: Solve, b: Solve) => a.date.getTime() - b.date.getTime());
 }
 
 function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
@@ -808,7 +820,9 @@ function parseAcubemyCsv(stringVal: string, splitter: string): Solve[] {
 }
 
 export function parseCsv(stringVal: string, splitter: string): Solve[] {
-    const header = stringVal.trim().split("\n")[0];
+    // Only the first line is needed, so avoid splitting the whole 45MB export to find it.
+    const firstBreak = stringVal.indexOf("\n");
+    const header = (firstBreak < 0 ? stringVal : stringVal.slice(0, firstBreak)).trim();
 
     if (header.includes("id,date,dnf,time,solving_method")) {
         return parseCubeastCsv(stringVal, splitter);
