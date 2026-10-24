@@ -18,6 +18,7 @@ import { Const } from "../Helpers/Constants";
 import DataGrid, { CellClickArgs, Column, RenderCellProps, SortColumn } from 'react-data-grid';
 import 'chartjs-adapter-moment';
 import { createChartWorker } from '../Workers/createChartWorker';
+import { MistakeChart } from './MistakeChart';
 
 ChartJS.register(CategoryScale);
 
@@ -295,6 +296,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
         charts.push(buildChartHtml(<Bar data={c.histogram} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale, true, false, isDark)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
         charts.push(buildChartHtml(<Line data={c.runningTps} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));
         charts.push(buildChartHtml(<Line data={c.runningTurns} options={createOptions(ChartType.Line, "Solve Number", "Turns", p.useLogScale, true, false, isDark)} />, "Average Turns", "This chart shows your average number of turns, in quarter turn metric"));
+        charts.push(<MistakeChart key="mistakes" summary={c.mistakes} />);
         charts.push(buildChartHtml(<Line data={c.runningEfficiency} options={createOptions(ChartType.Line, "Solve Number", "Percentage", p.useLogScale, true, false, isDark)} />, "Solve Efficiency", "This chart shows move efficiency ratio (after cancelling redundant same-face moves; 100% = no wasted moves), OLL/PLL success rates, and a combined solve efficiency (move efficiency minus failure rates)."));
         charts.push(buildChartHtml(
             <SortableGrid rows={c.bestSolvesData} columns={BEST_SOLVES_COLS} className="clickable-grid" onCellClick={this.openSolveSource} />,

@@ -8,6 +8,7 @@ import { CrossColor, FilterPanelProps, FilterPanelState, Filters, getStep, KeysO
 import { ChartPanel } from "./ChartPanel";
 import { GroupedMultiSelect } from "./GroupedMultiSelect";
 import { calculateMovingAverage, calculateMovingStdDev } from "../Helpers/MathHelpers";
+import { markMistakes } from "../Helpers/MistakeAnalysis";
 import { FormControl, Card, Row, Offcanvas, Col, Button, Tooltip, OverlayTrigger, Alert, Container, Spinner } from 'react-bootstrap';
 import { Const } from "../Helpers/Constants";
 import { CalculateAllSessionOptions, CalculateBenchmarkTimes, CalculateWindowSize } from "../Helpers/CubeHelpers";
@@ -114,7 +115,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         const ollStep = getStep(solve, StepName.OLL);
         if (solve.method == MethodName.CFOP && ollStep?.case && filters.ollCases.indexOf(ollStep.case) < 0) return false;
 
-        // If total time or any step is 3 standard deviations away, remove it
+        // Detailed mistake reasons drive the same clean/mistake filter.
         if (filters.solveCleanliness.indexOf(solve.isMistake ? SolveCleanliness.Mistake : SolveCleanliness.Clean) < 0) return false;
         if (filters.solveLuckiness.indexOf(solve.isFullStep ? SolveLuckiness.FullStep : SolveLuckiness.Skip) < 0) return false;
 
@@ -131,23 +132,6 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         });
     }
 
-    // For each step, check if it is 3 standard deviations more than the average
-    static markAllMistakes(allSolves: Solve[], windowSize: number): Solve[] {
-        if (allSolves.length == 0) {
-            return [];
-        }
-
-        const mistakes: boolean[][] = [this.getMistakeMap(allSolves.map(x => x.time), windowSize)];
-        allSolves[0].steps.forEach(({ name }, i) => {
-            // Steps are usually in the same slot in every solve, so check that slot before scanning.
-            const times = allSolves.map(x => (x.steps[i]?.name === name ? x.steps[i] : x.steps.find(s => s.name === name))?.time ?? 0);
-            mistakes.push(this.getMistakeMap(times, windowSize));
-        });
-
-        allSolves.forEach((solve, i) => { solve.isMistake = mistakes.some(map => map[i]); });
-        return allSolves;
-    }
-
     static markAllLuckiness(allSolves: Solve[]): Solve[] {
         for (const solve of allSolves) {
             const numSteps = Const.MethodSteps[solve.method].length;
@@ -162,7 +146,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     }
 
     static applyFiltersToSolves(allSolves: Solve[], filters: Filters, windowSize: number): Solve[] {
-        const marked = this.markAllLuckiness(this.markAllMistakes(allSolves, windowSize));
+        const marked = this.markAllLuckiness(markMistakes(allSolves, windowSize));
         return marked.filter(x => this.passesFilters(x, filters));
     }
 
@@ -558,7 +542,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     {this.multiFilter(
                         Const.solveCleanliness, this.state.solveCleanliness, this.setCleanliness.bind(this),
                         "Solve Cleanliness",
-                        "Choose whether to show messed up solves or clean solves. The definition of a mistake is: Any solve that took 3 standard deviations more than average OR any step that took 3 standard deviations more than average for that step"
+                        "Clean means no detected mistake signals. Mistakes include extra stage moves, long recognition/AUF, move undos, and timing outliers. See the Mistakes chart for the exact rules; missing data cannot prove a solve was clean."
                     )}
 
                     {this.multiFilter(

@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@jest/globals';
 import { FilterPanel } from '../Components/FilterPanel';
 import { Const } from '../Helpers/Constants';
+import { markMistakes } from '../Helpers/MistakeAnalysis';
 import {
     CrossColor,
     Filters,
@@ -172,20 +173,20 @@ describe('FilterPanel.getMistakeMap', () => {
     });
 });
 
-describe('FilterPanel.markAllMistakes', () => {
+describe('markMistakes', () => {
     test('returns an empty array for no solves', () => {
-        expect(FilterPanel.markAllMistakes([], 5)).toEqual([]);
+        expect(markMistakes([], 5)).toEqual([]);
     });
 
     test('marks nothing for a consistent run of solves', () => {
         const solves = makeSolves(20, { time: 20 });
-        const marked = FilterPanel.markAllMistakes(solves, 5);
+        const marked = markMistakes(solves, 5);
         expect(marked.every(s => s.isMistake === false)).toBe(true);
     });
 
     test('marks a solve whose total time is a huge outlier', () => {
         const solves = [...makeSolves(20, { time: 20 }), makeSolve({ id: 'outlier', time: 500 })];
-        const marked = FilterPanel.markAllMistakes(solves, 5);
+        const marked = markMistakes(solves, 5);
         expect(marked[marked.length - 1].isMistake).toBe(true);
     });
 
@@ -198,12 +199,12 @@ describe('FilterPanel.markAllMistakes', () => {
                 steps: makeCfopSteps([2, 4, 4, 4, 4, 300, 3]),
             }),
         ];
-        const marked = FilterPanel.markAllMistakes(solves, 5);
+        const marked = markMistakes(solves, 5);
         expect(marked[marked.length - 1].isMistake).toBe(true);
     });
 
     test('returns one solve per input solve', () => {
-        expect(FilterPanel.markAllMistakes(makeSolves(7), 5)).toHaveLength(7);
+        expect(markMistakes(makeSolves(7), 5)).toHaveLength(7);
     });
 });
 

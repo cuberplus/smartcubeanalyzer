@@ -76,6 +76,17 @@ h6 {
   padding: 0 20px 20px 20px;
 }
 
+@media (min-width: 768px) {
+  .chart-card-expanded .chart-card-scroll {
+    --bs-aspect-ratio: 0;
+  }
+  .chart-card-expanded .chart-card-scroll > * {
+    position: static;
+    height: auto;
+    overflow: visible !important;
+  }
+}
+
 /* Alerts */
 .alert-heading {
   font-weight: 500;

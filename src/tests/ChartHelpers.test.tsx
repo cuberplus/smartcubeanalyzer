@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
-import { buildChartHtml, createOptions, createTooltip } from '../Helpers/ChartHelpers';
+import { ChartCard, buildChartHtml, createOptions, createTooltip } from '../Helpers/ChartHelpers';
 import { DARK_AXIS_COLORS } from '../Helpers/ChartColors';
 import { ChartType } from '../Helpers/Types';
 
@@ -17,9 +17,11 @@ describe('buildChartHtml', () => {
         expect(element.key).toBe('Running Average');
     });
 
-    test('lays the chart out as a half-width column on medium screens', () => {
+    test('uses the shared expandable card for every chart', () => {
         const element = buildChartHtml(null!, 'Running Average', 'tooltip text');
-        expect(element.props.className).toBe('col-12 col-md-6');
+        expect(element.type).toBe(ChartCard);
+        expect(element.props.title).toBe('Running Average');
+        expect(element.props.tooltip).toBe('tooltip text');
     });
 
     test('embeds the chart element it is given', () => {

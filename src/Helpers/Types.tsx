@@ -2,6 +2,7 @@
 // pulling in React so this file can be safely imported by Web Workers.
 // The chart.js import is type-only, so it is erased before the worker bundle is built.
 import type { ChartData, DefaultDataPoint } from 'chart.js/auto';
+import type { Mistake, MistakeSummary } from './MistakeAnalysis';
 
 /** Every chart in this app labels its axis with strings, so TLabel is pinned rather than left as Chart.js' default. */
 export type LabelledChart<T extends 'line' | 'bar' | 'doughnut', TLabel = string> = ChartData<T, DefaultDataPoint<T>, TLabel>;
@@ -138,6 +139,7 @@ export interface Solve {
     method: MethodName,
     session: string,
     isMistake: boolean,
+    mistakes?: Mistake[],
     isFullStep: boolean
 }
 
@@ -223,6 +225,7 @@ export type DatedPoint = { x: Date; y: number };
  * Optional entries are only produced when the relevant steps are selected.
  */
 export interface ChartDataBundle {
+    mistakes: MistakeSummary;
     runningAverage: LabelledChart<'line'>;
     runningStdDev: LabelledChart<'line'>;
     runningTps: LabelledChart<'line'>;

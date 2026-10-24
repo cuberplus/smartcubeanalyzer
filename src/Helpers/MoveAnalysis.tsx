@@ -26,6 +26,41 @@ function parseMoveTokenUncached(token: string): ParsedToken | null {
     return quarterTurns === undefined ? null : { face: m[1], quarterTurns };
 }
 
+export type MoveMistake = { kind: 'singleUndo' | 'sequenceUndo' | 'redundantTurns'; auf: boolean };
+/** Maximal contiguous inverse sequences are one episode; rotations/unknown tokens are barriers. */
+export function analyzeMoveMistakes(tokens: string[], auf: Set<string> = AUF_MOVES): MoveMistake[] {
+    const moves = tokens.map(token => {
+        const match = /^([RLUDFBrludfbMES]w?)(\d+)?(')?$/.exec(token);
+        if (!match) return null;
+        const count = Number(match[2] ?? 1);
+        return Number.isFinite(count) ? { face: match[1].endsWith('w') ? match[1][0].toLowerCase() : match[1], count,
+            turns: (count % 4) * (match[3] ? 3 : 1) % 4 } : null;
+    });
+    const face = auf.values().next().value;
+    let prefix = 0, suffix = moves.length - 1;
+    while (prefix < moves.length && moves[prefix]?.face === face) prefix++;
+    while (suffix >= 0 && moves[suffix]?.face === face) suffix--;
+    const inAuf = (left: number, right: number) => right < prefix || left > suffix;
+    const inverse = (left: number, right: number) => moves[left] && moves[right] && moves[left]!.turns > 0
+        && moves[left]!.face === moves[right]!.face && (moves[left]!.turns + moves[right]!.turns) % 4 === 0;
+    const issues: MoveMistake[] = [];
+    let consumed = -1;
+    for (let i = 1; i < moves.length; i++) {
+        if (i - 1 <= consumed || !inverse(i - 1, i)) continue;
+        let left = i - 1, right = i;
+        while (left > consumed + 1 && right + 1 < moves.length && inverse(left - 1, right + 1)) { left--; right++; }
+        issues.push({ kind: right - left > 1 ? 'sequenceUndo' : 'singleUndo', auf: inAuf(left, right) });
+        consumed = right;
+        i = right;
+    }
+    moves.forEach((move, i) => {
+        if (!move) return;
+        const repeated = i > 0 && moves[i - 1]?.face === move.face && !inverse(i - 1, i);
+        if (move.count >= 3 || move.count === 0 || repeated) issues.push({ kind: 'redundantTurns', auf: inAuf(repeated ? i - 1 : i, i) });
+    });
+    return issues;
+}
+
 function quarterTurnsToSliceTurns(qt: number): number {
     return ((qt % 4) + 4) % 4 === 0 ? 0 : 1;
 }
@@ -111,8 +146,8 @@ function isRotationOrAuf(t: string, aufMoves: Set<string> = AUF_MOVES): boolean 
     return ROTATIONS.has(t.toLowerCase()) || aufMoves.has(t);
 }
 
-export function coreMovesCount(movesString: string, aufMoves: Set<string> = AUF_MOVES): number {
-    const tokens = tokenizeMoves(movesString);
+export function coreMovesCount(movesString: string | string[], aufMoves: Set<string> = AUF_MOVES): number {
+    const tokens = typeof movesString === 'string' ? tokenizeMoves(movesString) : movesString;
     if (tokens.length === 0) return 0;
     let start = 0;
     while (start < tokens.length && isRotationOrAuf(tokens[start], aufMoves)) start++;
@@ -147,6 +182,10 @@ function lowestMode(sorted: number[]): number | null {
         .sort((a, b) => a - b);
     if (modes.length === sorted.length) return null;
     return modes[0];
+}
+
+export function typicalCaseMoves(sorted: number[]): number {
+    return lowestMode(sorted) ?? median(sorted);
 }
 
 export function computeCaseFailureStats(

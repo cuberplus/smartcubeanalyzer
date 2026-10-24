@@ -3,6 +3,7 @@ import { buildRunningAverageData, buildRunningStdDevData, buildRunningTpsData, b
 import { applyPaletteToChartData, SEGMENT_COLORS } from '../Helpers/ChartColors';
 import { analyzeStepMoves, computeCaseFailureStats, computeSolveEfficiency } from '../Helpers/MoveAnalysis';
 import { getAufMovesForSolve } from '../Helpers/CsvParser';
+import { summarizeMistakes } from '../Helpers/MistakeAnalysis';
 import { Const } from '../Helpers/Constants';
 import { AlgoPracticeRow, CaseStats, ChartDataBundle, FastestSolve, LabelledChart, getStep, MethodName, RecordRow, Solve, StepName, StreakData, StreakRow } from '../Helpers/Types';
 
@@ -322,6 +323,7 @@ export function computeAllChartData(input: WorkerInput): ChartDataBundle {
         applyPaletteToChartData(data, isDark, perPointColors);
 
     const cache: ChartDataBundle = {
+        mistakes: summarizeMistakes(solves, windowSize),
         runningAverage: paint(buildRunningAverageData(solves, windowSize, pointsPerGraph)),
         runningStdDev: paint(buildRunningStdDevData(solves, windowSize, pointsPerGraph)),
         runningTps: paint(buildRunningTpsData(solves, windowSize, pointsPerGraph)),

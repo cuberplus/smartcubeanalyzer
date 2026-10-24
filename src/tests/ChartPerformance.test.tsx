@@ -249,7 +249,11 @@ describe('full site load time', () => {
             const cards = container.querySelectorAll('.card');
             const plotted = container.querySelectorAll('[data-chart]');
             expect(cards.length).toBeGreaterThanOrEqual(20);
+            expect(screen.getAllByRole('button', { name: 'Expand' })).toHaveLength(cards.length);
+            const titles = Array.from(cards, card => card.getAttribute('aria-label'));
+            expect(titles.indexOf('Mistakes')).toBe(titles.indexOf('Average Turns') + 1);
             expect(plotted.length).toBeGreaterThan(0);
+            expect(screen.getByRole('region', { name: 'Mistakes' })).toBeTruthy();
             console.log(`Rendered ${cards.length} chart cards in ${totalMs.toFixed(0)} ms.`);
 
             cleanup();
@@ -289,7 +293,7 @@ describe('full site load time', () => {
                 'runningRecognitionExecution', 'runningEfficiency', 'histogram', 'stepAverages',
                 'runningColorPercentages', 'dailyRecord', 'streakRows', 'recordRows', 'goodBad',
                 'recordHistory', 'stepPercentages', 'typicalCompare', 'bestSolvesData',
-                'ollCategory', 'pllCategory',
+                'ollCategory', 'pllCategory', 'mistakes',
             ];
             required.forEach(key => expect(charts.result[key]).toBeTruthy());
 
