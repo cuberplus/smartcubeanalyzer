@@ -12,6 +12,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import React from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { FileInput } from '../Components/FileInput';
+import { GetDemoData } from '../Helpers/SampleData';
+import { parseCsv } from '../Helpers/CsvParser';
+import type { ChartDataBundle } from '../Helpers/Types';
+import type { WorkerInput } from '../Workers/chartWorker';
 
 /** The only parts of a Chart.js dataset this test inspects. */
 type MockPoint = number | null | { x: number | Date; y: number };
@@ -19,6 +25,7 @@ interface MockChartData { labels?: (string | number)[]; datasets?: { label?: str
 interface ChartMockProps { data?: MockChartData }
 
 const mockChartProps: ChartMockProps[] = [];
+const mockWorkerResults: { input: WorkerInput; chartData: ChartDataBundle }[] = [];
 
 jest.mock('react-chartjs-2', () => ({
     Line: (props: ChartMockProps) => { mockChartProps.push(props); return React.createElement('div', { 'data-chart': 'line' }); },
@@ -34,6 +41,7 @@ jest.mock('../Workers/createChartWorker', () => ({
             onmessage: null,
             postMessage(input: WorkerInput) {
                 const chartData = compute(input);
+                mockWorkerResults.push({ input, chartData });
                 worker.onmessage?.(new MessageEvent('message', { data: { requestId: input.requestId, chartData } }));
             },
             terminate() { },
@@ -41,12 +49,6 @@ jest.mock('../Workers/createChartWorker', () => ({
         return worker;
     },
 }));
-
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { FileInput } from '../Components/FileInput';
-import { GetDemoData } from '../Helpers/SampleData';
-import { parseCsv } from '../Helpers/CsvParser';
-import type { WorkerInput } from '../Workers/chartWorker';
 
 const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo', 'demo-solves.csv');
 const EXPECTED_SOLVES = 21793;
@@ -115,9 +117,10 @@ describe('loading the bundled dev stats through the UI', () => {
     });
 
     test(
-        'the app shows every solve and charts plot real numbers',
+        'the app shows every solve, plots real numbers, and restores identical data after filter changes',
         async () => {
             mockChartProps.length = 0;
+            mockWorkerResults.length = 0;
             render(React.createElement(FileInput));
 
             fireEvent.click(screen.getByText('Demo Data'));
@@ -141,6 +144,79 @@ describe('loading the bundled dev stats through the UI', () => {
             const plotted = mockChartProps.flatMap(p => numbersIn(p.data));
             expect(plotted.length).toBeGreaterThan(0);
             expect(plotted.filter(v => v !== 0).length).toBeGreaterThan(plotted.length * 0.5);
+
+            const snapshot = () => {
+                const { input, chartData } = mockWorkerResults[mockWorkerResults.length - 1];
+                return {
+                    solves: JSON.stringify(input.solves),
+                    charts: JSON.stringify(chartData),
+                    settings: JSON.stringify({ ...input, solves: [], requestId: 0 }),
+                };
+            };
+            // Capture values, not references: mistake classification mutates source solves.
+            const baseline = snapshot();
+            const changeAndRestore = async (change: () => void, restore: () => void) => {
+                let requests = mockWorkerResults.length;
+                change();
+                await waitFor(() => expect(mockWorkerResults.length).toBeGreaterThan(requests));
+                expect(snapshot().charts === baseline.charts).toBe(false);
+                requests = mockWorkerResults.length;
+                restore();
+                await waitFor(() => expect(mockWorkerResults.length).toBeGreaterThan(requests));
+                const restored = snapshot();
+                expect({
+                    solves: restored.solves === baseline.solves,
+                    charts: restored.charts === baseline.charts,
+                    settings: restored.settings === baseline.settings,
+                }).toEqual({ solves: true, charts: true, settings: true });
+                expect(mockWorkerResults[mockWorkerResults.length - 1].input.solves).toHaveLength(EXPECTED_SHOWN);
+            };
+
+            fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close', exact: true }));
+            for (const preset of ['PLL', 'F2L', 'OLL', 'Cross+1']) {
+                await changeAndRestore(
+                    () => fireEvent.click(screen.getByRole('button', { name: preset, exact: true })),
+                    () => fireEvent.click(screen.getByRole('button', { name: 'Full', exact: true }))
+                );
+            }
+            fireEvent.click(screen.getByLabelText('Open filters'));
+            for (const excluded of ['Mistake', 'Clean']) {
+                // Cleanliness is the fourth multi-select in the filter drawer.
+                fireEvent.click(screen.getAllByText('All items are selected.')[3]);
+                await changeAndRestore(
+                    () => fireEvent.click(screen.getByRole('option', { name: excluded, exact: true })),
+                    () => fireEvent.click(screen.getByRole('option', { name: excluded, exact: true }))
+                );
+                fireEvent.click(screen.getAllByText('All items are selected.')[3]);
+            }
+            const input = (id: string) => screen.getAllByRole('spinbutton').find(field => field.getAttribute('id') === id)!;
+            const toggle = (id: string) => screen.getAllByRole('switch').find(field => field.getAttribute('id') === id)!;
+            await changeAndRestore(
+                () => fireEvent.change(input('slowestSolve'), { target: { value: '15' } }),
+                () => fireEvent.change(input('slowestSolve'), { target: { value: '300' } })
+            );
+            await changeAndRestore(
+                () => {
+                    fireEvent.change(input('fastestSolve'), { target: { value: '300' } });
+                    expect(screen.getByText(/Showing .* solves/).textContent).toContain('Showing 0 /');
+                },
+                () => fireEvent.change(input('fastestSolve'), { target: { value: '0' } })
+            );
+            await changeAndRestore(
+                () => {
+                    fireEvent.click(toggle('autoWindowSize'));
+                    fireEvent.change(input('windowSize'), { target: { value: '100' } });
+                },
+                () => fireEvent.click(toggle('autoWindowSize'))
+            );
+            await changeAndRestore(
+                () => fireEvent.change(input('pointsPerGraph'), { target: { value: '25' } }),
+                () => fireEvent.change(input('pointsPerGraph'), { target: { value: '100' } })
+            );
+            await changeAndRestore(
+                () => fireEvent.click(toggle('use4SegmentTiming')),
+                () => fireEvent.click(toggle('use4SegmentTiming'))
+            );
         },
         300_000
     );
