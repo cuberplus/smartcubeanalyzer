@@ -29,12 +29,8 @@ export const DEFAULT_DEMO_FILE = DEMO_DATASETS[0].file;
  * with or without a trailing slash.
  */
 function getDemoDataUrl(file: string): string {
-    if (typeof process !== 'undefined' && process.env.PUBLIC_URL) {
-        return `${process.env.PUBLIC_URL.replace(/\/?$/, '')}/${file}`;
-    }
-    const pathname = window.location.pathname;
-    const basePath = pathname.endsWith('/') ? pathname : `${pathname}/`;
-    return `${window.location.origin}${basePath}${file}`;
+    const pathname = window.location.pathname.replace(/\/index\.html$/, '/');
+    return `${window.location.origin}${pathname.replace(/\/?$/, '/')}${file}`;
 }
 
 export function GetDemoData(file: string = DEFAULT_DEMO_FILE): Promise<string> {

@@ -57,7 +57,7 @@ All sources are normalized so that metrics such as total time, recognition/execu
 
 ## Installation
 
-To install the dependencies, run:
+Use Node.js 20.19+ or 22.12+ and install the dependencies:
 
 ```bash
 npm install
@@ -71,7 +71,14 @@ To start the development server, run:
 npm start
 ```
 
-This builds the app and starts a local development server (typically on `http://localhost:3000`), where you can explore the dashboards and visualizations.
+This starts Vite at `http://127.0.0.1:3000/smartcubeanalyzer/`, where you can explore the dashboards and visualizations.
+
+`npm run build` type-checks and lints the application, then writes the production
+site to `build/`. `npm run preview` serves that build locally. The GitHub Pages
+base path remains `/smartcubeanalyzer/`; `npm run deploy` still publishes `build/`.
+
+The Vite config uses `.mjs` rather than package-level `"type": "module"` to
+preserve Babel-style default imports for the existing CommonJS dependencies.
 
 ## Importing solve data
 

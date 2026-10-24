@@ -62,7 +62,7 @@ describe('external solve links', () => {
 });
 
 describe('index.html security headers', () => {
-    const html = readFileSync(join(__dirname, '..', '..', 'public', 'index.html'), 'utf8');
+    const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8');
     const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1] ?? '';
 
     test('ships a Content-Security-Policy, since GitHub Pages cannot send headers', () => {

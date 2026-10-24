@@ -1,6 +1,10 @@
 import React from "react";
 import { HelpPanelProps, HelpPanelState } from "../Helpers/Types";
 import { Button, Modal } from "react-bootstrap";
+import cubeastCsv from "../Assets/CubeastCsv.png";
+import cubeastDownload from "../Assets/CubeastDownload.png";
+import acubemyCsv from "../Assets/AcubemyCsv.png";
+import analyzerSteps from "../Assets/AnalyzerSteps.png";
 
 export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
     render() {
@@ -37,7 +41,7 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                                 <a href="https://app.cubeast.com/log/solves">
                                     <img
                                         className="img-fluid w-75"
-                                        src={require("../Assets/CubeastCsv.png")}
+                                        src={cubeastCsv}
                                         alt="Cubeast export solves as CSV"
                                     />
                                 </a>
@@ -56,7 +60,7 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                                 <a href="https://app.cubeast.com/exports">
                                     <img
                                         className="img-fluid w-75"
-                                        src={require("../Assets/CubeastDownload.png")}
+                                        src={cubeastDownload}
                                         alt="Cubeast download CSV exports page"
                                     />
                                 </a>
@@ -73,7 +77,7 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                         <div className="text-center">
                             <img
                                 className="img-fluid w-75"
-                                src={require("../Assets/AcubemyCsv.png")}
+                                src={acubemyCsv}
                                 alt="Acubemy export solves as CSV"
                             />
                         </div>
@@ -87,7 +91,7 @@ export class HelpPanel extends React.Component<HelpPanelProps, HelpPanelState> {
                         <div className="text-center">
                             <img
                                 className="img-fluid w-75"
-                                src={require("../Assets/AnalyzerSteps.png")}
+                                src={analyzerSteps}
                                 alt="Steps to upload CSV files into Smartcube Analyzer"
                             />
                         </div>

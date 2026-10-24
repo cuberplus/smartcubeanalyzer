@@ -19,7 +19,7 @@ import { join } from 'path';
 
 const PUBLIC_DIR = join(__dirname, '..', '..', 'public');
 const themeInit = readFileSync(join(PUBLIC_DIR, 'theme-init.js'), 'utf8');
-const indexHtml = readFileSync(join(PUBLIC_DIR, 'index.html'), 'utf8');
+const indexHtml = readFileSync(join(PUBLIC_DIR, '..', 'index.html'), 'utf8');
 const indexTsx = readFileSync(join(__dirname, '..', 'index.tsx'), 'utf8');
 
 const RESIZE_OBSERVER_MESSAGES = [

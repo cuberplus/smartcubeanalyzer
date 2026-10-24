@@ -7,8 +7,6 @@ interface TestGlobals {
     fetch?: (url: string) => Promise<{ ok: boolean; text: () => Promise<string> }>;
 }
 const globalAny: TestGlobals = globalThis;
-const env = process.env as Record<string, string | undefined>;
-const originalPublicUrl = env.PUBLIC_URL;
 const originalWindow = globalAny.window;
 const originalFetch = globalAny.fetch;
 
@@ -29,29 +27,26 @@ function setWindowLocation(origin: string, pathname: string) {
 }
 
 afterEach(() => {
-    if (originalPublicUrl === undefined) delete env.PUBLIC_URL;
-    else env.PUBLIC_URL = originalPublicUrl;
     globalAny.window = originalWindow;
     globalAny.fetch = originalFetch;
 });
 
 describe('GetDemoData', () => {
-    test('resolves the CSV relative to PUBLIC_URL when it is set', async () => {
-        env.PUBLIC_URL = '/smartcubeanalyzer';
+    test('resolves the CSV relative to an explicit index page', async () => {
+        setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer/index.html');
         const calls = mockFetch({ ok: true, text: 'a,b' });
         await GetDemoData();
-        expect(calls[0]).toBe('/smartcubeanalyzer/demo/demo-solves.csv');
+        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo/demo-solves.csv');
     });
 
-    test('does not double up the slash when PUBLIC_URL ends with one', async () => {
-        env.PUBLIC_URL = '/smartcubeanalyzer/';
+    test('resolves the CSV relative to an index page at the site root', async () => {
+        setWindowLocation('https://cuberplus.com', '/index.html');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
-        expect(calls[0]).toBe('/smartcubeanalyzer/demo/demo-solves.csv');
+        expect(calls[0]).toBe('https://cuberplus.com/demo/demo-solves.csv');
     });
 
-    test('falls back to the page location when PUBLIC_URL is not set', async () => {
-        delete env.PUBLIC_URL;
+    test('resolves the CSV relative to the page location', async () => {
         setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
@@ -59,7 +54,6 @@ describe('GetDemoData', () => {
     });
 
     test('works when the page path already ends with a slash', async () => {
-        delete env.PUBLIC_URL;
         setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer/');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
@@ -67,7 +61,6 @@ describe('GetDemoData', () => {
     });
 
     test('works when the app is served from the site root', async () => {
-        delete env.PUBLIC_URL;
         setWindowLocation('http://localhost:3000', '/');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
@@ -75,28 +68,28 @@ describe('GetDemoData', () => {
     });
 
     test('returns the CSV text on success', async () => {
-        env.PUBLIC_URL = '/app';
+        setWindowLocation('https://cuberplus.com', '/app/');
         mockFetch({ ok: true, text: 'time,date\n10,2024-01-01' });
         await expect(GetDemoData()).resolves.toBe('time,date\n10,2024-01-01');
     });
 
     test('rejects when the demo CSV cannot be fetched', async () => {
-        env.PUBLIC_URL = '/app';
+        setWindowLocation('https://cuberplus.com', '/app/');
         mockFetch({ ok: false });
         await expect(GetDemoData()).rejects.toThrow('Failed to load demo data');
     });
 
     test('fetches the dataset the picker asked for', async () => {
-        env.PUBLIC_URL = '/smartcubeanalyzer';
+        setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer/');
         const calls = mockFetch({ ok: true, text: 'a,b' });
         await GetDemoData('demo/roux-small.csv');
-        expect(calls[0]).toBe('/smartcubeanalyzer/demo/roux-small.csv');
+        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo/roux-small.csv');
     });
 
     test('falls back to the original demo data when no dataset is named', async () => {
-        env.PUBLIC_URL = '/smartcubeanalyzer';
+        setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer/');
         const calls = mockFetch({ ok: true, text: 'a,b' });
         await GetDemoData();
-        expect(calls[0]).toBe(`/smartcubeanalyzer/${DEFAULT_DEMO_FILE}`);
+        expect(calls[0]).toBe(`https://cuberplus.com/smartcubeanalyzer/${DEFAULT_DEMO_FILE}`);
     });
 });
