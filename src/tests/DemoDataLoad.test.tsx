@@ -48,7 +48,7 @@ import { GetDemoData } from '../Helpers/SampleData';
 import { parseCsv } from '../Helpers/CsvParser';
 import type { WorkerInput } from '../Workers/chartWorker';
 
-const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo-solves.csv');
+const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo', 'demo-solves.csv');
 const EXPECTED_SOLVES = 21793;
 // Two solves in the demo data are corrupt and are dropped by the default filters.
 const EXPECTED_SHOWN = 21791;

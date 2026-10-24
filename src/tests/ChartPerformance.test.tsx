@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  *
  * Load-time tests driven by the full dev stats shipped in this repo
- * (public/demo-solves.csv - the dataset the "test data" button loads).
+ * (public/demo/demo-solves.csv - the dataset the "test data" button loads).
  *
  * These measure how long the user waits before charts appear:
  *   - one end-to-end test for the whole page (CSV -> charts on screen)
@@ -100,7 +100,7 @@ const CHART_BUDGET_MS = Number(process.env.CHART_PERF_CHART_BUDGET_MS ?? 400);
 const PARSE_BUDGET_MS = Number(process.env.CHART_PERF_PARSE_BUDGET_MS ?? 1_400);
 const COMPUTE_BUDGET_MS = Number(process.env.CHART_PERF_COMPUTE_BUDGET_MS ?? 800);
 
-const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo-solves.csv');
+const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo', 'demo-solves.csv');
 const WINDOW_SIZE = 1000;
 const POINTS_PER_GRAPH = 100;
 const ALL_CFOP_STEPS = Const.MethodSteps[MethodName.CFOP];

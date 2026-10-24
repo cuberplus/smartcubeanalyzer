@@ -40,14 +40,14 @@ describe('GetDemoData', () => {
         env.PUBLIC_URL = '/smartcubeanalyzer';
         const calls = mockFetch({ ok: true, text: 'a,b' });
         await GetDemoData();
-        expect(calls[0]).toBe('/smartcubeanalyzer/demo-solves.csv');
+        expect(calls[0]).toBe('/smartcubeanalyzer/demo/demo-solves.csv');
     });
 
     test('does not double up the slash when PUBLIC_URL ends with one', async () => {
         env.PUBLIC_URL = '/smartcubeanalyzer/';
         const calls = mockFetch({ ok: true });
         await GetDemoData();
-        expect(calls[0]).toBe('/smartcubeanalyzer/demo-solves.csv');
+        expect(calls[0]).toBe('/smartcubeanalyzer/demo/demo-solves.csv');
     });
 
     test('falls back to the page location when PUBLIC_URL is not set', async () => {
@@ -55,7 +55,7 @@ describe('GetDemoData', () => {
         setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
-        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo-solves.csv');
+        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo/demo-solves.csv');
     });
 
     test('works when the page path already ends with a slash', async () => {
@@ -63,7 +63,7 @@ describe('GetDemoData', () => {
         setWindowLocation('https://cuberplus.com', '/smartcubeanalyzer/');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
-        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo-solves.csv');
+        expect(calls[0]).toBe('https://cuberplus.com/smartcubeanalyzer/demo/demo-solves.csv');
     });
 
     test('works when the app is served from the site root', async () => {
@@ -71,7 +71,7 @@ describe('GetDemoData', () => {
         setWindowLocation('http://localhost:3000', '/');
         const calls = mockFetch({ ok: true });
         await GetDemoData();
-        expect(calls[0]).toBe('http://localhost:3000/demo-solves.csv');
+        expect(calls[0]).toBe('http://localhost:3000/demo/demo-solves.csv');
     });
 
     test('returns the CSV text on success', async () => {

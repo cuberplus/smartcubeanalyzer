@@ -210,14 +210,19 @@ describe('the demo dataset registry', () => {
 
     test('every CSV in public/demo is offered in the dropdown', () => {
         const onDisk = readdirSync(join(__dirname, '..', '..', 'public', 'demo')).filter(f => f.endsWith('.csv')).sort();
-        const listed = DEMO_DATASETS.map(d => d.file).filter(f => f.startsWith('demo/')).map(f => f.slice('demo/'.length)).sort();
+        const listed = DEMO_DATASETS.map(d => d.file.slice('demo/'.length)).sort();
         expect(listed).toEqual(onDisk);
+    });
+
+    test('all demo datasets live in public/demo, not the public root', () => {
+        expect(DEMO_DATASETS.every(d => d.file.startsWith('demo/'))).toBe(true);
+        expect(readdirSync(join(__dirname, '..', '..', 'public')).filter(f => f.endsWith('.csv'))).toEqual([]);
     });
 
     test('ids and names are unique, and the button loads the original demo data', () => {
         expect(new Set(DEMO_DATASETS.map(d => d.id)).size).toBe(DEMO_DATASETS.length);
         expect(new Set(DEMO_DATASETS.map(d => d.name)).size).toBe(DEMO_DATASETS.length);
-        expect(DEFAULT_DEMO_FILE).toBe('demo-solves.csv');
+        expect(DEFAULT_DEMO_FILE).toBe('demo/demo-solves.csv');
     });
 
     test('every offered dataset parses into solves', () => {
