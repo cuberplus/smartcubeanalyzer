@@ -72,6 +72,7 @@ interface ScaleOptions {
     ticks?: ScaleTicks;
     stacked?: boolean;
     type?: 'linear' | 'logarithmic' | 'timeseries';
+    bounds?: 'data';
     timeseries?: { units: string; displayFormats: Record<string, string> };
 }
 
@@ -168,15 +169,14 @@ export function createOptions(chartType: ChartType, xAxis: string, yAxis: string
         return chartOptions;
     }
 
-    const x: ScaleOptions = { title: { display: true, text: xAxis } };
+    let x: ScaleOptions = { title: { display: true, text: xAxis } };
     const y: ScaleOptions = { title: { display: true, text: yAxis } };
 
     if (chartType === ChartType.Line) {
         chartOptions.spanGaps = true;
         if (isDateChart) {
-            x.type = 'timeseries';
-            x.timeseries = { units: 'quarter', displayFormats: { quarter: 'MMM yyyy' } };
-        } else if (xAxis === 'Solve Number') { x.type = 'linear'; x.ticks = { precision: 0 }; }
+            x = { ...x, type: 'timeseries', timeseries: { units: 'quarter', displayFormats: { quarter: 'MMM yyyy' } } };
+        } else if (xAxis === 'Solve Number') { x = { ...x, type: 'linear', bounds: 'data', ticks: { precision: 0 } }; }
     } else {
         x.stacked = isStacked;
         x.ticks = { autoSkip: true, maxRotation: 45 };
