@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
 import { Const } from '../Helpers/Constants';
-import { CrossColor, MethodName, Solve, StepName } from '../Helpers/Types';
+import { ChartDataBundle, CrossColor, MethodName, Solve, StepName } from '../Helpers/Types';
 import { makeCfopSteps, makeDailySolves, makeSolve, makeSolves, makeStep } from './testUtils';
 
 // The worker registers its handler on the global scope at import time. This side-effect import must
@@ -83,6 +83,76 @@ describe('chartWorker OLL/PLL category charts', () => {
     test('includes the OLL category chart only when OLL is a selected step', () => {
         expect(run({ steps: ALL_CFOP_STEPS }).chartData.ollCategory).toBeDefined();
         expect(run({ steps: [StepName.Cross] }).chartData.ollCategory).toBeUndefined();
+    });
+
+    describe('rolling chart solve numbers', () => {
+        const charts = (data: ChartDataBundle) => [
+            data.runningStdDev, data.runningTps, data.runningTurns, data.runningRecognitionExecution,
+            data.runningEfficiency, data.stepAverages, data.runningColorPercentages, data.goodBad,
+            ...(data.runningInspection ? [data.runningInspection] : []),
+            ...(data.ollCategory ? [data.ollCategory] : []),
+            ...(data.pllCategory ? [data.pllCategory] : []),
+        ];
+
+        test('all sampled rolling charts label 400 solves from window end 100 through solve 400', () => {
+            const { chartData } = run({ solves: makeSolves(400), windowSize: 100, pointsPerGraph: 100 });
+            for (const chart of [chartData.runningAverage, ...charts(chartData)]) {
+                expect(chart.labels![0]).toBe('100');
+                expect(chart.labels!.at(-1)).toBe('400');
+                expect(chart.labels).toEqual(chartData.runningAverage.labels);
+                chart.datasets.forEach(dataset => expect(dataset.data).toHaveLength(chart.labels!.length));
+            }
+        });
+
+        test.each([1, 2])('DNFs stay excluded while a window of %i retains original solve numbers', windowSize => {
+            const solves = [10, 1000, 1000, 1000, 1000, 5].map((time, i) =>
+                makeSolve({ time, dnf: i > 0 && i < 5, turns: i === 0 ? 10 : 20, inspectionTime: time }));
+            const before = JSON.stringify(solves);
+            const { chartData } = run({ solves, windowSize });
+            for (const chart of charts(chartData)) {
+                expect(chart.labels).toEqual(windowSize === 1 ? ['1', '6'] : ['6']);
+            }
+            expect(chartData.runningTurns.datasets[0].data).toEqual(windowSize === 1 ? [10, 20] : [15]);
+            expect(chartData.runningInspection!.datasets[0].data).toEqual(windowSize === 1 ? [10, 5] : [7.5]);
+            expect(JSON.stringify(solves)).toBe(before);
+        });
+
+        test('sampled labels stay paired with their actual DNF-free windows', () => {
+            const solves = makeSolves(400).map((solve, i) => ({ ...solve, turns: i + 1, dnf: i % 7 === 2 }));
+            const eligible = solves.map((solve, i) => ({ solve, number: i + 1 })).filter(entry => !entry.solve.dnf);
+            const windowSize = 10;
+            const { chartData } = run({ solves, windowSize, pointsPerGraph: 7 });
+            for (const chart of charts(chartData)) {
+                expect(chart.labels).toEqual(chartData.runningTurns.labels);
+                expect(chart.labels![0]).toBe(String(eligible[windowSize - 1].number));
+                expect(chart.labels!.at(-1)).toBe('400');
+                chart.datasets.forEach(dataset => expect(dataset.data).toHaveLength(chart.labels!.length));
+            }
+            chartData.runningTurns.labels!.forEach((label, i) => {
+                const end = eligible.findIndex(entry => entry.number === Number(label));
+                const window = eligible.slice(end - windowSize + 1, end + 1);
+                expect(window).toHaveLength(windowSize);
+                expect(chartData.runningTurns.datasets[0].data[i]).toBeCloseTo(window.reduce((sum, entry) => sum + entry.solve.turns, 0) / windowSize);
+            });
+        });
+
+        test.each([1, 2])('inspection retains original numbers after both DNF and missing-data exclusions (window %i)', windowSize => {
+            const solves = makeSolves(6).map((solve, i) => ({
+                ...solve, dnf: i === 1, inspectionTime: i === 0 ? 10 : i === 5 ? 5 : null,
+            }));
+            const { chartData } = run({ solves, windowSize });
+            expect(chartData.runningInspection!.labels).toEqual(windowSize === 1 ? ['1', '6'] : ['6']);
+            expect(chartData.runningInspection!.datasets[0].data).toEqual(windowSize === 1 ? [10, 5] : [7.5]);
+            expect(chartData.runningTurns.labels).toEqual(windowSize === 1 ? ['1', '3', '4', '5', '6'] : ['3', '4', '5', '6']);
+        });
+
+        test('filtered rolling charts are empty when fewer successful solves than the window remain', () => {
+            const solves = makeSolves(6).map((solve, i) => ({ ...solve, dnf: i !== 0 }));
+            for (const chart of charts(run({ solves, windowSize: 2 }).chartData)) {
+                expect(chart.labels).toEqual([]);
+                chart.datasets.forEach(dataset => expect(dataset.data).toEqual([]));
+            }
+        });
     });
 
     test('includes the PLL category chart only when PLL is a selected step', () => {

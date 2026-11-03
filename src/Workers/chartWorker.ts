@@ -118,7 +118,7 @@ export function buildStepAverages(solves: Solve[], steps: StepName[], windowSize
         average = reduceDataset(average, pointsPerGraph);
         return { label: `${stepName} Average of ${windowSize}`, data: average };
     });
-    const labels = makeLabels(datasets[0].data.length, pointsPerGraph);
+    const labels = makeLabels(Math.max(0, solves.length - windowSize + 1), pointsPerGraph, windowSize);
     return { labels, datasets };
 }
 
@@ -163,7 +163,7 @@ export function buildRunningEfficiencyData(
     const efficiencies = effList.map(e => e.moveEfficiency * 100);
 
     let movingAvg = calculateMovingAverage(efficiencies, windowSize);
-    const labels = makeLabels(movingAvg.length, pointsPerGraph);
+    const labels = makeLabels(movingAvg.length, pointsPerGraph, windowSize);
     movingAvg = reduceDataset(movingAvg, pointsPerGraph);
 
     const datasets: { label: string; data: number[] }[] = [
@@ -302,6 +302,7 @@ export function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 export function computeAllChartData(input: WorkerInput): ChartDataBundle {
     const { windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
     const solves = input.solves.filter(s => !s.dnf);
+    const solveNumbers = input.solves.flatMap((solve, i) => solve.dnf ? [] : [i + 1]);
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
@@ -313,36 +314,38 @@ export function computeAllChartData(input: WorkerInput): ChartDataBundle {
     // Charts that carry their own semantic colours are left alone by the palette.
     const paint = <T extends 'line' | 'bar' | 'doughnut', TLabel>(data: LabelledChart<T, TLabel>, perPointColors?: boolean): LabelledChart<T, TLabel> =>
         applyPaletteToChartData(data, isDark, perPointColors);
+    const paintRolling = (data: LabelledChart<'line'>, numbers = solveNumbers): LabelledChart<'line'> =>
+        paint({ ...data, labels: data.labels?.map(label => String(numbers[Number(label) - 1])) });
 
     const cache: ChartDataBundle = {
         mistakes: summarizeMistakes(solves, windowSize),
         runningAverage: paint(buildRunningAverageData(input.solves, windowSize, pointsPerGraph, input.chopPercentage)),
-        runningStdDev: paint(buildRunningStdDevData(solves, windowSize, pointsPerGraph)),
-        runningTps: paint(buildRunningTpsData(solves, windowSize, pointsPerGraph)),
+        runningStdDev: paintRolling(buildRunningStdDevData(solves, windowSize, pointsPerGraph)),
+        runningTps: paintRolling(buildRunningTpsData(solves, windowSize, pointsPerGraph)),
         runningInspection: showInspectionCharts
-            ? paint(buildRunningInspectionData(inspectionSolves, windowSize, pointsPerGraph))
+            ? paintRolling(buildRunningInspectionData(inspectionSolves, windowSize, pointsPerGraph), solveNumbers.filter((_, i) => solves[i].inspectionTime != null))
             : null,
-        runningTurns: paint(buildRunningTurnsData(solves, windowSize, pointsPerGraph)),
-        runningRecognitionExecution: paint(buildRunningRecognitionExecution(solves, windowSize, pointsPerGraph, use4SegmentTiming)),
-        runningEfficiency: paint(buildRunningEfficiencyData(solves, steps, methodName, windowSize, pointsPerGraph)),
+        runningTurns: paintRolling(buildRunningTurnsData(solves, windowSize, pointsPerGraph)),
+        runningRecognitionExecution: paintRolling(buildRunningRecognitionExecution(solves, windowSize, pointsPerGraph, use4SegmentTiming)),
+        runningEfficiency: paintRolling(buildRunningEfficiencyData(solves, steps, methodName, windowSize, pointsPerGraph)),
         histogram: paint(buildHistogramData(solves, windowSize)),
-        stepAverages: paint(buildStepAverages(solves, steps, windowSize, pointsPerGraph)),
-        runningColorPercentages: paint(buildRunningColorPercentages(solves, windowSize, pointsPerGraph, isDark)),
+        stepAverages: paintRolling(buildStepAverages(solves, steps, windowSize, pointsPerGraph)),
+        runningColorPercentages: paintRolling(buildRunningColorPercentages(solves, windowSize, pointsPerGraph, isDark)),
         inspection: showInspectionCharts
             ? paint(buildInspectionData(inspectionSolves, windowSize))
             : null,
         dailyRecord: paint(buildDailyRecordData(solves)),
         streakRows: buildAllStreakRows(solves),
         recordRows: buildRecordRows(input.solves),
-        goodBad: paint(buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime)),
+        goodBad: paintRolling(buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime)),
         recordHistory: applyPaletteToChartData(buildRecordHistory(input.solves), isDark),
         stepPercentages: paint(buildStepPercentages(solves, steps, windowSize), true),
         typicalCompare: paint(buildTypicalCompare(solves, windowSize)),
         bestSolvesData: computeBestSolvesData(solves),
     };
 
-    if (hasOll) cache.ollCategory = paint(buildOllCategoryChart(solves, windowSize, pointsPerGraph));
-    if (hasPll) cache.pllCategory = paint(buildPllCategoryChart(solves, windowSize, pointsPerGraph));
+    if (hasOll) cache.ollCategory = paintRolling(buildOllCategoryChart(solves, windowSize, pointsPerGraph));
+    if (hasPll) cache.pllCategory = paintRolling(buildPllCategoryChart(solves, windowSize, pointsPerGraph));
     if (steps.length === 1 && (steps[0] === StepName.OLL || steps[0] === StepName.PLL)) {
         cache.caseData = paint(buildCaseData(solves, steps, windowSize, use4SegmentTiming));
         cache.algoPracticeRows = buildAlgorithmPracticeRows(solves, steps, windowSize);

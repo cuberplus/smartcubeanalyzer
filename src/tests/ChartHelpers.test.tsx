@@ -33,6 +33,12 @@ describe('buildChartHtml', () => {
 });
 
 describe('createOptions - line charts', () => {
+    test.each([false, true])('solve-number axes preserve numerical gaps and integer ticks in dark mode %s', isDark => {
+        const options = createOptions(ChartType.Line, 'Solve Number', 'Seconds', false, true, false, isDark);
+        expect(options.scales!.x.type).toBe('linear');
+        expect(options.scales!.x.ticks!.precision).toBe(0);
+    });
+
     test('labels both axes with the supplied names', () => {
         const options = createOptions(ChartType.Line, 'Solve #', 'Seconds', false);
         expect(options.scales!.x.title!.text).toBe('Solve #');

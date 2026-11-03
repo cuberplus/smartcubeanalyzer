@@ -28,7 +28,7 @@ function buildMovingLineChart(
 ): LabelledChart<'line'> {
     const allData = series.map(s => s.calcFn(solves.map(s.extract), windowSize));
     const reducedData = allData.map(d => reduceDataset(d, pointsPerGraph));
-    const labels = makeLabels(allData[0].length, pointsPerGraph);
+    const labels = makeLabels(allData[0].length, pointsPerGraph, windowSize);
     return {
         labels,
         datasets: series.map((s, i) => ({ label: s.label, data: reducedData[i] })),
@@ -98,7 +98,7 @@ export function buildRunningRecognitionExecution(
     const moving = (extract: (s: Solve) => number) => calculateMovingAverage(solves.map(extract), windowSize);
 
     const recognition = { name: 'Recognition', values: moving((x) => x.recognitionTime), color: colors.recognition };
-    const labels = makeLabels(recognition.values.length, pointsPerGraph);
+    const labels = makeLabels(recognition.values.length, pointsPerGraph, windowSize);
 
     // AUF segments only appear when the data actually contains them.
     const segments = use4SegmentTiming
@@ -153,28 +153,10 @@ export function buildGoodBadData(
     goodTime: number,
     badTime: number
 ): LabelledChart<'line'> {
-    const checkIfBad = (time: number) => time > badTime;
-    const checkIfGood = (time: number) => time < goodTime;
-    let movingPercentBad = calculateMovingPercentage(
-        solves.map((x) => x.time),
-        windowSize,
-        checkIfBad
-    );
-    let movingPercentGood = calculateMovingPercentage(
-        solves.map((x) => x.time),
-        windowSize,
-        checkIfGood
-    );
-    const labels = makeLabels(movingPercentBad.length, pointsPerGraph);
-    movingPercentBad = reduceDataset(movingPercentBad, pointsPerGraph);
-    movingPercentGood = reduceDataset(movingPercentGood, pointsPerGraph);
-    return {
-        labels,
-        datasets: [
-            { label: `Percentage of good solves over last ${windowSize}`, data: movingPercentGood },
-            { label: `Percentage of bad solves over last ${windowSize}`, data: movingPercentBad },
-        ],
-    };
+    return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
+        { extract: x => x.time, calcFn: (times, window) => calculateMovingPercentage(times, window, time => time < goodTime), label: `Percentage of good solves over last ${windowSize}` },
+        { extract: x => x.time, calcFn: (times, window) => calculateMovingPercentage(times, window, time => time > badTime), label: `Percentage of bad solves over last ${windowSize}` },
+    ]);
 }
 
 export function buildRunningColorPercentages(
@@ -213,7 +195,7 @@ export function buildRunningColorPercentages(
             };
         }
     );
-    const labels = makeLabels(datasets[0].data.length, pointsPerGraph);
+    const labels = makeLabels(Math.max(0, solves.length - windowSize + 1), pointsPerGraph, windowSize);
     return { labels, datasets };
 }
 
@@ -257,7 +239,7 @@ function buildCategoryPercentageChart(
         label,
         data: reduceDataset(calculateMovingPercentage(cases, windowSize, predicate), pointsPerGraph),
     }));
-    const labels = makeLabels(datasets[0].data.length, pointsPerGraph);
+    const labels = makeLabels(Math.max(0, solves.length - windowSize + 1), pointsPerGraph, windowSize);
     return { labels, datasets };
 }
 

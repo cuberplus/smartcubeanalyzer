@@ -64,14 +64,14 @@ export function buildChartHtml(chart: JSX.Element, title: string, tooltip: strin
 
 interface ScaleTitle { display?: boolean; text?: string; color?: string; }
 interface ScaleGrid { color?: string; }
-interface ScaleTicks { autoSkip?: boolean; maxRotation?: number; color?: string; }
+interface ScaleTicks { autoSkip?: boolean; maxRotation?: number; color?: string; precision?: number; }
 
 interface ScaleOptions {
     title?: ScaleTitle;
     grid?: ScaleGrid;
     ticks?: ScaleTicks;
     stacked?: boolean;
-    type?: 'logarithmic' | 'timeseries';
+    type?: 'linear' | 'logarithmic' | 'timeseries';
     timeseries?: { units: string; displayFormats: Record<string, string> };
 }
 
@@ -176,7 +176,7 @@ export function createOptions(chartType: ChartType, xAxis: string, yAxis: string
         if (isDateChart) {
             x.type = 'timeseries';
             x.timeseries = { units: 'quarter', displayFormats: { quarter: 'MMM yyyy' } };
-        }
+        } else if (xAxis === 'Solve Number') { x.type = 'linear'; x.ticks = { precision: 0 }; }
     } else {
         x.stacked = isStacked;
         x.ticks = { autoSkip: true, maxRotation: 45 };

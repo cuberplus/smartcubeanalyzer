@@ -158,6 +158,13 @@ describe('reduceDataset', () => {
 });
 
 describe('makeLabels', () => {
+    test('samples window-ending numbers rather than renumbering the retained points', () => {
+        const labels = makeLabels(301, 100, 100);
+        expect(labels[0]).toBe('100');
+        expect(labels.at(-1)).toBe('400');
+        expect(labels[1]).toBe('103');
+    });
+
     test('labels start at 1 and are strings', () => {
         expect(makeLabels(3, 500)).toEqual(['1', '2', '3']);
     });
