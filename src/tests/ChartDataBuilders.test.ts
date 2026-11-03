@@ -74,6 +74,47 @@ function makeSolves(count: number, overrides: Partial<Solve> = {}): Solve[] {
 // ── buildRunningAverageData ───────────────────────────────────────────────────
 
 describe('buildRunningAverageData', () => {
+    test('supports disabling chopping, a custom percentage, and small-window caps', () => {
+        const solves = [1, 2, 3, 4, 5, 6, 7, 8, 90, 100].map(time => makeSolve({ time }));
+        expect(buildRunningAverageData(solves, 10, 500, 0).datasets[0].data).toEqual([22.6]);
+        expect(buildRunningAverageData(solves, 10, 500, 20).datasets[0].data).toEqual([5.5]);
+        expect(buildRunningAverageData(solves.slice(0, 6), 6, 500, 49).datasets[0].data).toEqual([3.5]);
+    });
+
+    test.each([5, 12, 100, 1000])('trims ceil(5%%) from both ends of Ao%i', window => {
+        const times = Array.from({ length: window }, (_, i) => i + 1);
+        times[window - 1] = 100000;
+        const trim = Math.ceil(window / 20), kept = times.slice(trim, -trim);
+        const result = buildRunningAverageData(times.map(time => makeSolve({ time })), window, 500);
+        expect(result.datasets[0].data[0]).toBeCloseTo(kept.reduce((a, b) => a + b) / kept.length);
+        expect(result.labels).toEqual([String(window)]);
+    });
+
+    test('retains unsampled best/worst averages with their original window-ending labels', () => {
+        const solves = Array.from({ length: 205 }, (_, i) => makeSolve({
+            time: i >= 35 && i < 40 ? 5 : i >= 65 && i < 70 ? 50 : 20,
+        }));
+        const result = buildRunningAverageData(solves, 5, 10);
+        expect(result.datasets[0].data).toContain(5);
+        expect(result.datasets[0].data).toContain(50);
+        const labels = result.labels!;
+        expect(labels[0]).toBe('5');
+        expect(labels[labels.length - 1]).toBe('205');
+        result.datasets[0].data.forEach((value, i) => {
+            const end = Number(labels[i]);
+            const kept = solves.slice(end - 5, end).map(s => s.time).sort((a, b) => a - b).slice(1, -1);
+            expect(value).toBeCloseTo(kept.reduce((a, b) => a + b) / 3);
+        });
+    });
+
+    test('keeps DNF windows as gaps and recovers even when downsampled', () => {
+        const solves = Array.from({ length: 50 }, (_, i) => makeSolve({ time: 20, dnf: i === 17 || i === 18 }));
+        const result = buildRunningAverageData(solves, 5, 3);
+        expect(result.datasets[0].data).toContain(null);
+        expect(result.datasets[0].data[result.datasets[0].data.length - 1]).toBe(20);
+        expect(result.labels).toHaveLength(result.datasets[0].data.length);
+    });
+
     test('returns empty datasets when solves < windowSize', () => {
         const result = buildRunningAverageData(makeSolves(3), 5, 500);
         expect(result.datasets[0].data).toHaveLength(0);

@@ -192,7 +192,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
     private _watched(): WatchedProp[] {
         const p = this.props;
         return [p.solves, p.windowSize, p.pointsPerGraph, p.steps.join(','), p.useLogScale,
-            p.goodTime, p.badTime, p.methodName, p.use4SegmentTiming, this._isDark()];
+            p.goodTime, p.badTime, p.methodName, p.use4SegmentTiming, p.chopAverages !== false, p.chopPercentage ?? 5, this._isDark()];
     }
 
     private _propsChanged(): boolean {
@@ -217,6 +217,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             methodName: p.methodName,
             use4SegmentTiming: p.use4SegmentTiming,
             isDark: this._isDark(),
+            chopPercentage: p.chopAverages === false ? 0 : p.chopPercentage ?? 5,
         });
     }
 
@@ -291,7 +292,7 @@ export class ChartPanel extends React.Component<ChartPanelProps, ChartPanelState
             ));
         }
 
-        charts.push(buildChartHtml(<Line data={c.runningAverage} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Time", "This chart shows your running average"));
+        charts.push(buildChartHtml(<Line data={c.runningAverage} options={{ ...createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark), spanGaps: false }} />, "Average Time", `Rolling average chopping ${p.chopAverages === false ? 0 : p.chopPercentage ?? 5}% per end (rounded up, retaining at least one solve). Untrimmed DNFs create gaps. Best and worst valid averages are always plotted; solve numbers mark each window's end. Record averages always use standard 5% trimming.`));
         if (hasStepTimings) charts.push(buildChartHtml(<Line data={c.runningRecognitionExecution} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Recognition and Execution", "This chart shows your running average, split up by recognition time and execution time"));
         charts.push(buildChartHtml(<Bar data={c.histogram} options={createOptions(ChartType.Bar, "Time (s)", "Count", p.useLogScale, true, false, isDark)} />, "Count of Solves by How Long They Took", "This chart shows how many solves you have done in 10s, 11s, 12s, etc..."));
         charts.push(buildChartHtml(<Line data={c.runningTps} options={createOptions(ChartType.Line, "Solve Number", "Time (s)", p.useLogScale, true, false, isDark)} />, "Average Turns Per Second", "This chart shows your average turns per second. 'TPS During Execution' only counts your TPS while actively turning the cube"));

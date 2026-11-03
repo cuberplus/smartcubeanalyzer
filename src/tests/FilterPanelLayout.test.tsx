@@ -51,6 +51,7 @@ describe('filter sidebar layout', () => {
             'Use Logarithmic Scale',
             '4-Segment Timing',
             'Benchmarks',
+            'Chop Rolling Average',
             'Pick Start Date',
             'Pick End Date'
         ]);

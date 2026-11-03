@@ -75,6 +75,8 @@ function defaultSelections(method: MethodName, sessions: Option[], bench: { good
         ...bench,
         useLogScale: false,
         use4SegmentTiming: false,
+        chopAverages: true,
+        chopPercentage: 5,
     };
 }
 
@@ -101,7 +103,7 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
         if (filters.sources.indexOf(solve.source) < 0) return false;
         if (filters.crossColors.indexOf(solve.crossColor) < 0) return false;
         if (solve.date < filters.startDate || solve.date > filters.endDate) return false;
-        if (solve.time < filters.fastestTime || solve.time > filters.slowestTime) return false;
+        if (!solve.dnf && (solve.time < filters.fastestTime || solve.time > filters.slowestTime)) return false;
         // Acubemy exports may not report inspection time. Those solves should not be excluded by inspection filters.
         if (solve.inspectionTime != null && (solve.inspectionTime < filters.lowestInspection || solve.inspectionTime > filters.highestInspection)) return false;
         // Only filter by session when the solve has a session set; avoids excluding rows where session wasn't parsed (e.g. CSV column alignment).
@@ -165,11 +167,10 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
             }
 
             const turns = stepTurns > 0 ? stepTurns : solve.turns;
-            // An export can name a method's steps without timing them (Acubemy records
-            // Roux and ZZ as one block), so those solves fall back to their own total.
-            // Solves that do have step timings keep theirs, so a skip still reads zero.
+            // Full solves retain source timing and penalties; subsets use step timing.
             const hasStepTimings = solve.steps.some(step => step.time > 0);
-            const time = stepTime > 0 || hasStepTimings ? stepTime : solve.time;
+            const fullSolve = Const.MethodSteps[solve.method].every(step => steps.includes(step));
+            const time = fullSolve || !hasStepTimings ? solve.time : stepTime;
             const tps = stepTime > 0 && turns > 0 ? turns / stepTime : solve.tps;
 
             // Every other field is carried over untouched.
@@ -348,6 +349,10 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
     setBadTime(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberField('badTime', event); }
 
     setGoodTime(event: React.ChangeEvent<HTMLInputElement>) { this.setNumberField('goodTime', event); }
+
+    setChopPercentage(event: React.ChangeEvent<HTMLInputElement>) {
+        this.setField('chopPercentage', Math.max(0, Math.min(49, Number(event.target.value) || 0)));
+    }
 
     setWindowSize(event: React.ChangeEvent<HTMLInputElement>) {
         const parsedWindowSize = parseInt(event.target.value);
@@ -635,6 +640,15 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                     )}
 
                     {this.createFilterHtml(
+                        <div className="row align-items-center g-2">
+                            <div className="col-auto d-flex align-items-center"><ReactSwitch id="chopAverages" aria-label="Chop rolling average" checked={this.state.chopAverages} onChange={checked => this.setField('chopAverages', checked)} /></div>
+                            <div className="col"><FormControl id="chopPercentage" aria-label="Chop percentage per end" type="number" min="0" max="49" step="1" value={this.state.chopPercentage} disabled={!this.state.chopAverages} onChange={this.setChopPercentage.bind(this)} /></div>
+                        </div>,
+                        "Chop Rolling Average",
+                        "Remove this percentage of the fastest and slowest solves from each rolling-average window, rounded up. At least one solve is retained. Does not change standard Ao5/Ao12/Ao100/Ao1000 records."
+                    )}
+
+                    {this.createFilterHtml(
                         <DatePicker
                             selected={this.state.filters.startDate}
                             onChange={this.setStartDate.bind(this)}
@@ -686,6 +700,8 @@ export class FilterPanel extends React.Component<FilterPanelProps, FilterPanelSt
                                 steps={this.state.filters.steps}
                                 useLogScale={this.state.useLogScale}
                                 use4SegmentTiming={this.state.use4SegmentTiming}
+                                chopAverages={this.state.chopAverages}
+                                chopPercentage={this.state.chopPercentage}
                             />
                         </Col>
                     </Row>

@@ -124,6 +124,7 @@ export interface Solve {
     rawSource?: string,
     time: number,
     date: Date,
+    dnf?: boolean,
     crossColor: CrossColor,
     scramble: string,
     tps: number,
@@ -187,7 +188,9 @@ export interface FilterPanelState {
     goodTime: number,
     method: Option<MethodName>,
     useLogScale: boolean,
-    use4SegmentTiming: boolean
+    use4SegmentTiming: boolean,
+    chopAverages: boolean,
+    chopPercentage: number
 }
 
 export interface FileInputProps { }
@@ -212,7 +215,9 @@ export interface ChartPanelProps {
     methodName: MethodName,
     steps: StepName[],
     useLogScale: boolean,
-    use4SegmentTiming: boolean
+    use4SegmentTiming: boolean,
+    chopAverages?: boolean,
+    chopPercentage?: number
 }
 
 export interface ChartPanelState { chartData: ChartDataBundle | null; isComputing: boolean; }

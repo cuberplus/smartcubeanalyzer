@@ -222,6 +222,31 @@ describe('chartWorker streaks', () => {
 });
 
 describe('chartWorker records', () => {
+    test('custom chart chopping does not change standard record averages', () => {
+        const solves = [1, 2, 3, 4, 5, 6, 7, 8, 90, 100].map(time => makeSolve({ time }));
+        const untrimmed = run({ solves, windowSize: 10, chopPercentage: 0 }).chartData;
+        const trimmed = run({ solves, windowSize: 10, chopPercentage: 20 }).chartData;
+        expect(untrimmed.runningAverage.datasets[0].data).toEqual([22.6]);
+        expect(trimmed.runningAverage.datasets[0].data).toEqual([5.5]);
+        expect(untrimmed.recordRows).toEqual(trimmed.recordRows);
+        expect(untrimmed.recordHistory).toEqual(trimmed.recordHistory);
+    });
+
+    test('trims Ao5, counts DNFs, and excludes them from fastest-single lists', () => {
+        const solves = [10, 11, 12, 13, 100].map(time => makeSolve({ time }));
+        expect(run({ solves }).chartData.recordRows.find(r => r.recordType === 'Ao5')!.time).toBe('12.000');
+        solves[4] = makeSolve({ time: 0, dnf: true });
+        const oneDnf = run({ solves }).chartData;
+        expect(oneDnf.recordRows.find(r => r.recordType === 'Ao5')!.time).toBe('12.000');
+        expect(oneDnf.bestSolvesData).toHaveLength(4);
+        solves[3] = makeSolve({ time: 0, dnf: true });
+        const twoDnfs = run({ solves }).chartData;
+        expect(twoDnfs.recordRows.find(r => r.recordType === 'Ao5')!.time).toBe('DNF');
+        expect(twoDnfs.recordHistory.datasets.find(d => d.label === 'Record Ao5')!.data).toEqual([]);
+        const recovered = run({ solves: [...solves, ...makeSolves(5, { time: 10 })] }).chartData;
+        expect(recovered.recordRows.find(r => r.recordType === 'Ao5')!.time).toBe('10.000');
+    });
+
     test('reports the fastest single', () => {
         const solves = makeDailySolves(10, [20, 19, 11, 25, 30, 18, 17, 16, 15, 14]);
         const { chartData } = run({ solves });
@@ -229,10 +254,10 @@ describe('chartWorker records', () => {
         expect(single.time).toBe('11.000');
     });
 
-    test('reports Infinity for averages that need more solves than exist', () => {
+    test('reports a dash for averages that need more solves than exist', () => {
         const { chartData } = run({ solves: makeSolves(3) });
         const ao12 = chartData.recordRows.find((r) => r.recordType === 'Ao12')!;
-        expect(ao12.time).toBe('Infinity');
+        expect(ao12.time).toBe('-');
     });
 
     test('record history only moves downward', () => {
@@ -246,7 +271,7 @@ describe('chartWorker records', () => {
     test('record history exposes a dataset per record type', () => {
         const { chartData } = run();
         expect(chartData.recordHistory.datasets.map((d) => d.label))
-            .toEqual(['Record Single', 'Record Ao5', 'Record Ao12', 'Record Ao100']);
+            .toEqual(['Record Single', 'Record Ao5', 'Record Ao12', 'Record Ao100', 'Record Ao1000']);
     });
 
     test('lists the fastest solves, capped and sorted ascending', () => {

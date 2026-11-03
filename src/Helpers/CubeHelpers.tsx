@@ -99,7 +99,7 @@ export function CalculateAllSessionOptions(solves: Solve[]): Option[] {
 
 export function CalculateBenchmarkTimes(solves: Solve[]): { goodTime: number; badTime: number } {
     const validSolves = solves
-        .filter(s => !s.isCorrupt)
+        .filter(s => !s.isCorrupt && !s.dnf)
         .slice()
         .sort((a, b) => a.date.getTime() - b.date.getTime());
 

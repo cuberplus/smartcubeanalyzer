@@ -6,6 +6,7 @@ import { Const } from './Constants';
 import {
     calculateAverage,
     calculateMovingAverage,
+    calculateMovingAverageChopped,
     calculateMovingPercentage,
     calculateMovingStdDev,
     makeLabels,
@@ -34,10 +35,28 @@ function buildMovingLineChart(
     };
 }
 
-export function buildRunningAverageData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {
-    return buildMovingLineChart(solves, windowSize, pointsPerGraph, [
-        { extract: x => x.time, calcFn: calculateMovingAverage, label: `Average Time Of ${windowSize}` },
-    ]);
+export function buildRunningAverageData(solves: Solve[], windowSize: number, pointsPerGraph: number, chopPercentage = 5): LabelledChart<'line'> {
+    const values = solves.map(s => s.dnf ? Infinity : s.time);
+    const chop = Math.min(Math.floor((windowSize - 1) / 2), Math.ceil(windowSize * chopPercentage / 100));
+    const averages = calculateMovingAverageChopped(values, windowSize, chop);
+    const indices = new Set(reduceDataset(averages.map((_, i) => i), pointsPerGraph));
+    let best = -1, worst = -1;
+    for (let i = 0; i < averages.length; i++) {
+        if (Number.isFinite(averages[i])) {
+            if (best < 0 || averages[i] < averages[best]) best = i;
+            if (worst < 0 || averages[i] > averages[worst]) worst = i;
+        }
+        if (i > 0 && Number.isFinite(averages[i]) !== Number.isFinite(averages[i - 1])) {
+            indices.add(i - 1);
+            indices.add(i);
+        }
+    }
+    if (best >= 0) { indices.add(best); indices.add(worst); }
+    const selected = Array.from(indices).sort((a, b) => a - b);
+    return {
+        labels: selected.map(i => String(i + windowSize)),
+        datasets: [{ label: `Average Time Of ${windowSize}`, data: selected.map(i => Number.isFinite(averages[i]) ? averages[i] : null) }],
+    };
 }
 
 export function buildRunningStdDevData(solves: Solve[], windowSize: number, pointsPerGraph: number): LabelledChart<'line'> {

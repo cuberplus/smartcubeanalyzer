@@ -48,6 +48,11 @@ function passingSolve(overrides: Partial<Solve> = {}): Solve {
 }
 
 describe('FilterPanel.passesFilters', () => {
+    test('retains DNFs in windows despite missing time, but still honors session filters', () => {
+        const solve = passingSolve({ dnf: true, time: 0, session: 'Practice' });
+        expect(FilterPanel.passesFilters(solve, permissiveFilters({ fastestTime: 10 }))).toBe(true);
+        expect(FilterPanel.passesFilters(solve, permissiveFilters({ sessions: ['Other'] }))).toBe(false);
+    });
     test('accepts a solve that matches every filter', () => {
         expect(FilterPanel.passesFilters(passingSolve(), permissiveFilters())).toBe(true);
     });
@@ -255,6 +260,12 @@ describe('FilterPanel.applyFiltersToSolves', () => {
 });
 
 describe('FilterPanel.compressSolves', () => {
+    test('preserves full-solve source timing and penalties instead of replacing it with step sums', () => {
+        const solve = makeSolve({ time: 28, steps: makeCfopSteps() });
+        expect(FilterPanel.compressSolves([solve], Const.MethodSteps[MethodName.CFOP])[0].time).toBe(28);
+        expect(FilterPanel.compressSolves([solve], [StepName.OLL])[0].time).toBe(3);
+    });
+
     test('sums recognition, execution and AUF times across the selected steps', () => {
         const solve = makeSolve({
             steps: [

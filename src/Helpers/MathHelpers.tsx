@@ -61,95 +61,41 @@ export function calculateMovingAverage(data: number[], window: number): number[]
     return result;
 };
 
-function insertSorted(arr: number[], val: number): void {
+function sortedPosition(arr: number[], val: number): number {
     let lo = 0, hi = arr.length;
     while (lo < hi) {
         const mid = (lo + hi) >> 1;
         if (arr[mid] < val) lo = mid + 1;
         else hi = mid;
     }
-    arr.splice(lo, 0, val);
+    return lo;
 }
 
-function removeSorted(arr: number[], val: number): void {
-    let lo = 0, hi = arr.length;
-    while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (arr[mid] < val) lo = mid + 1;
-        else hi = mid;
-    }
-    arr.splice(lo, 1);
-}
-
-export function calculateMovingAverageChopped(data: number[], window: number, chop: number): number[] {
-    if (chop <= 0) throw new Error("Bad chop");
+export function calculateMovingAverageChopped(data: number[], window: number, chop = Math.ceil(window / 20)): number[] {
+    if (chop < 0) throw new Error("Bad chop");
     if (chop * 2 >= window) throw new Error("Bad chop");
 
     const result: number[] = [];
     if (data.length < window) return result;
 
-    const trueWindow = window - chop * 2;
-
-    // Seed the three sorted arrays from the first window
     const sorted = data.slice(0, window).sort((a, b) => a - b);
-    const chopLo: number[] = sorted.slice(0, chop);            // chop smallest
-    const included: number[] = sorted.slice(chop, chop + trueWindow); // middle
-    const chopHi: number[] = sorted.slice(chop + trueWindow);  // chop largest
-    let includedSum = included.reduce((a, b) => a + b, 0);
-
-    result.push(includedSum / trueWindow);
-
+    let sum = 0, dnfs = 0;
+    // Infinity represents a DNF; never add it to the sum, so later windows recover.
+    const adjust = (value: number, direction: number) => {
+        if (value === Infinity) dnfs += direction;
+        else sum += direction * value;
+    };
+    sorted.slice(chop, window - chop).forEach(value => adjust(value, 1));
+    const average = () => dnfs ? Infinity : sum / (window - chop * 2);
+    result.push(average());
     for (let i = window; i < data.length; i++) {
-        const outgoing = data[i - window];
-        const incoming = data[i];
-
-        // Remove outgoing from the lowest set whose max covers it
-        if (chopLo.length > 0 && outgoing <= chopLo[chopLo.length - 1]) {
-            removeSorted(chopLo, outgoing);
-        } else if (chopHi.length > 0 && outgoing >= chopHi[0]) {
-            removeSorted(chopHi, outgoing);
-        } else {
-            removeSorted(included, outgoing);
-            includedSum -= outgoing;
-        }
-
-        // Add incoming to the appropriate set
-        if (chopLo.length > 0 && incoming <= chopLo[chopLo.length - 1]) {
-            insertSorted(chopLo, incoming);
-        } else if (chopHi.length > 0 && incoming >= chopHi[0]) {
-            insertSorted(chopHi, incoming);
-        } else {
-            insertSorted(included, incoming);
-            includedSum += incoming;
-        }
-
-        // Rebalance chopLo to exactly chop elements
-        if (chopLo.length < chop) {
-            // Borrow smallest of included
-            const val = included.shift()!;
-            includedSum -= val;
-            chopLo.push(val); // val >= all current chopLo elements
-        } else if (chopLo.length > chop) {
-            // Return largest of chopLo to included
-            const val = chopLo.pop()!;
-            included.unshift(val); // val <= all current included elements
-            includedSum += val;
-        }
-
-        // Rebalance chopHi to exactly chop elements
-        if (chopHi.length < chop) {
-            // Borrow largest of included
-            const val = included.pop()!;
-            includedSum -= val;
-            chopHi.unshift(val); // val <= all current chopHi elements
-        } else if (chopHi.length > chop) {
-            // Return smallest of chopHi to included
-            const val = chopHi.shift()!;
-            included.push(val); // val >= all current included elements
-            includedSum += val;
-        }
-
-        result.push(includedSum / trueWindow);
+        const outgoing = sortedPosition(sorted, data[i - window]);
+        adjust(sorted[outgoing < chop ? chop : outgoing >= window - chop ? window - chop - 1 : outgoing], -1);
+        sorted.splice(outgoing, 1);
+        const incoming = sortedPosition(sorted, data[i]);
+        adjust(incoming < chop ? sorted[chop - 1] : incoming >= window - chop ? sorted[window - chop - 1] : data[i], 1);
+        sorted.splice(incoming, 0, data[i]);
+        result.push(average());
     }
 
     return result;
@@ -207,25 +153,11 @@ export function calculateMovingStdDev(data: number[], window: number) {
 }
 
 export function reduceDataset<T>(values: T[], pointsPerGraph: number): T[] {
-    let targetPoints = pointsPerGraph;
-    if (values.length <= targetPoints) {
-        return values;
-    }
-
-    let reducedValues: T[] = []
-    let addedLastElement: boolean = false;
-    let delta = Math.floor(values.length / targetPoints);
-    for (let i = 0; i < values.length; i = i + delta) {
-        reducedValues.push(values[i]);
-        if (i === (values.length - 1)) {
-            addedLastElement = true;
-        }
-    }
-
-    if (!addedLastElement) {
-        reducedValues.push(values[values.length - 1]);
-    }
-
+    if (values.length <= pointsPerGraph) return values;
+    const delta = Math.max(1, Math.floor(values.length / pointsPerGraph));
+    const reducedValues: T[] = [];
+    for (let i = 0; i < values.length; i += delta) reducedValues.push(values[i]);
+    if ((values.length - 1) % delta !== 0) reducedValues.push(values[values.length - 1]);
     return reducedValues;
 }
 

@@ -18,6 +18,7 @@ export interface WorkerInput {
     methodName: MethodName;
     use4SegmentTiming: boolean;
     isDark: boolean;
+    chopPercentage?: number;
 }
 
 // ── Streak helpers ───────────────────────────────────────────────────────────
@@ -72,26 +73,24 @@ export function buildAllStreakRows(solves: Solve[]): StreakRow[] {
 
 // ── Records ──────────────────────────────────────────────────────────────────
 
+const RECORD_WINDOWS = [1, 5, 12, 100, 1000];
+const recordTimes = (solves: Solve[], window: number) => {
+    const times = solves.map(s => s.dnf ? Infinity : s.time);
+    return window === 1 ? times : calculateMovingAverageChopped(times, window);
+};
+
 export function buildRecordRows(solves: Solve[]): RecordRow[] {
-    const times = solves.map(x => x.time);
-    const single = Math.min.apply(null, times.length ? times : [Infinity]);
-    const ao5 = Math.min.apply(null, calculateMovingAverage(times, 5));
-    const ao12 = Math.min.apply(null, calculateMovingAverageChopped(times, 12, 1));
-    const ao100 = Math.min.apply(null, calculateMovingAverageChopped(times, 100, 5));
-    //const ao1000 = Math.min.apply(null, calculateMovingAverageChopped(times, 1000, 50));
-    return [
-        { recordType: 'Single', time: single.toFixed(3) },
-        { recordType: 'Ao5', time: ao5.toFixed(3) },
-        { recordType: 'Ao12', time: ao12.toFixed(3) },
-        { recordType: 'Ao100', time: ao100.toFixed(3) },
-        //{ recordType: 'Ao1000', time: ao1000.toFixed(3) },
-    ];
+    return RECORD_WINDOWS.map(window => {
+        const times = recordTimes(solves, window);
+        const best = times.reduce((a, b) => Math.min(a, b), Infinity);
+        return { recordType: window === 1 ? 'Single' : `Ao${window}`, time: !times.length ? '-' : best === Infinity ? 'DNF' : best.toFixed(3) };
+    });
 }
 
 function buildRecordDataset(dates: Date[], times: number[]) {
-    const records = [{ x: dates[0], y: times[0] }];
-    for (let i = 1; i < times.length; i++) {
-        if (times[i] < records[records.length - 1].y) {
+    const records: { x: Date; y: number }[] = [];
+    for (let i = 0; i < times.length; i++) {
+        if (Number.isFinite(times[i]) && (!records.length || times[i] < records[records.length - 1].y)) {
             records.push({ x: dates[i], y: times[i] });
         }
     }
@@ -100,19 +99,11 @@ function buildRecordDataset(dates: Date[], times: number[]) {
 
 export function buildRecordHistory(solves: Solve[]) {
     const dates = solves.map(x => x.date);
-    const times = solves.map(x => x.time);
-    const ao5 = calculateMovingAverage(times, 5);
-    const ao12 = calculateMovingAverageChopped(times, 12, 1);
-    const ao100 = calculateMovingAverageChopped(times, 100, 5);
-    //const ao1000 = calculateMovingAverageChopped(times, 1000, 50);
     return {
-        datasets: [
-            { label: 'Record Single', data: buildRecordDataset(dates, times) },
-            { label: 'Record Ao5', data: buildRecordDataset(dates.slice(4), ao5) },
-            { label: 'Record Ao12', data: buildRecordDataset(dates.slice(11), ao12) },
-            { label: 'Record Ao100', data: buildRecordDataset(dates.slice(99), ao100) },
-            //{ label: 'Record Ao1000', data: buildRecordDataset(dates.slice(999), ao1000) },
-        ],
+        datasets: RECORD_WINDOWS.map(window => ({
+            label: window === 1 ? 'Record Single' : `Record Ao${window}`,
+            data: buildRecordDataset(dates.slice(window - 1), recordTimes(solves, window)),
+        })),
     };
 }
 
@@ -309,7 +300,8 @@ export function computeBestSolvesData(solves: Solve[]): FastestSolve[] {
 // ── Main computation ──────────────────────────────────────────────────────────
 
 export function computeAllChartData(input: WorkerInput): ChartDataBundle {
-    const { solves, windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
+    const { windowSize, pointsPerGraph, steps, goodTime, badTime, methodName, use4SegmentTiming, isDark } = input;
+    const solves = input.solves.filter(s => !s.dnf);
     const hasOll = steps.includes(StepName.OLL);
     const hasPll = steps.includes(StepName.PLL);
 
@@ -324,7 +316,7 @@ export function computeAllChartData(input: WorkerInput): ChartDataBundle {
 
     const cache: ChartDataBundle = {
         mistakes: summarizeMistakes(solves, windowSize),
-        runningAverage: paint(buildRunningAverageData(solves, windowSize, pointsPerGraph)),
+        runningAverage: paint(buildRunningAverageData(input.solves, windowSize, pointsPerGraph, input.chopPercentage)),
         runningStdDev: paint(buildRunningStdDevData(solves, windowSize, pointsPerGraph)),
         runningTps: paint(buildRunningTpsData(solves, windowSize, pointsPerGraph)),
         runningInspection: showInspectionCharts
@@ -341,9 +333,9 @@ export function computeAllChartData(input: WorkerInput): ChartDataBundle {
             : null,
         dailyRecord: paint(buildDailyRecordData(solves)),
         streakRows: buildAllStreakRows(solves),
-        recordRows: buildRecordRows(solves),
+        recordRows: buildRecordRows(input.solves),
         goodBad: paint(buildGoodBadData(solves, windowSize, pointsPerGraph, goodTime, badTime)),
-        recordHistory: applyPaletteToChartData(buildRecordHistory(solves), isDark),
+        recordHistory: applyPaletteToChartData(buildRecordHistory(input.solves), isDark),
         stepPercentages: paint(buildStepPercentages(solves, steps, windowSize), true),
         typicalCompare: paint(buildTypicalCompare(solves, windowSize)),
         bestSolvesData: computeBestSolvesData(solves),

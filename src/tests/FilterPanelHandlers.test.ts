@@ -70,6 +70,15 @@ describe('FilterPanel multi-select handlers', () => {
 describe('FilterPanel numeric handlers', () => {
     const evt = (value: string) => ({ target: { value } }) as React.ChangeEvent<HTMLInputElement>;
 
+    test('chopping defaults on at five percent and clamps custom percentages', () => {
+        expect(newPanel().state.chopAverages).toBe(true);
+        expect(newPanel().state.chopPercentage).toBe(5);
+        expect(runHandler(p => p.setChopPercentage(evt('10'))).chopPercentage).toBe(10);
+        expect(runHandler(p => p.setChopPercentage(evt('-1'))).chopPercentage).toBe(0);
+        expect(runHandler(p => p.setChopPercentage(evt('100'))).chopPercentage).toBe(49);
+        expect(runHandler(p => p.setChopPercentage(evt(''))).chopPercentage).toBe(0);
+    });
+
     const filterCases: Array<[string, (p: FilterPanel, e: React.ChangeEvent<HTMLInputElement>) => void, keyof Filters]> = [
         ['slowest solve', (p, e) => p.setSlowestSolve(e), 'slowestTime'],
         ['fastest solve', (p, e) => p.setFastestSolve(e), 'fastestTime'],

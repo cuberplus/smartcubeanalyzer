@@ -257,6 +257,7 @@ export function stripRotationsFromMoveString(movesString: string | undefined | n
 interface RowScratch {
     moves: (MoveTiming[] | null)[];
     cumulativeSec: number[];
+    penaltyMs: number;
 }
 
 type ColumnSetter = (obj: Solve, value: string, scratch: RowScratch) => void;
@@ -268,9 +269,12 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     const headerEnd = stringVal.indexOf("\n");
     const keys = splitCsvLine((headerEnd < 0 ? stringVal : stringVal.slice(0, headerEnd)).trim(), splitterCode);
 
-    const keyMap: { [key: string]: (obj: Solve, value: string) => void } = {
+    const keyMap: { [key: string]: ColumnSetter } = {
         "id": (obj, value) => { obj.id = value; obj.rawSourceId = value; obj.source = 'cubeast'; },
         "time": (obj, value) => { obj.time = Number(value) / 1000; if (obj.time < 1) obj.isCorrupt = true; },
+        "dnf": (obj, value) => { obj.dnf = value.toLowerCase() === 'true'; },
+        "one_turn_away_two_second_penalty": (obj, value, scratch) => { if (value.toLowerCase() === 'true') scratch.penaltyMs += 2000; },
+        "inspection_two_second_penalty": (obj, value, scratch) => { if (value.toLowerCase() === 'true') scratch.penaltyMs += 2000; },
         "date": (obj, value) => { obj.date = parseUtcDateTime(value); },
         "solution_rotation": (obj, value) => {
             obj.crossColor = Const.crossMappings.get(value) ?? CrossColor.Unknown;
@@ -326,7 +330,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
     const formedArr: Solve[] = [];
     const stepCount = GetEmptySolve().steps.length;
     // Reused across rows; the parser is single threaded, so one set of scratch buffers is enough.
-    const scratch: RowScratch = { moves: new Array(stepCount).fill(null), cumulativeSec: new Array(stepCount).fill(-1) };
+    const scratch: RowScratch = { moves: new Array(stepCount).fill(null), cumulativeSec: new Array(stepCount).fill(-1), penaltyMs: 0 };
     const times = [0, 0, 0, 0];
     const total = stringVal.length;
 
@@ -339,6 +343,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         if (end <= lineStart) { lineStart = lineEnd + 1; continue; }
 
         const obj = GetEmptySolve();
+        scratch.penaltyMs = 0;
         for (let i = 0; i < stepCount; i++) { scratch.moves[i] = null; scratch.cumulativeSec[i] = -1; }
         times[0] = times[1] = times[2] = times[3] = 0;
 
@@ -370,7 +375,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
         // After parsing the row, adjust Cubeast Solve.time to represent in-hand time:
         // prefer solving_time, else subtract pickup/putdown from time, else use raw time.
         if (obj.source === 'cubeast') {
-            const finalMs = solvingTimeMs > 0 ? solvingTimeMs
+            const finalMs = solvingTimeMs > 0 ? solvingTimeMs + scratch.penaltyMs
                 : rawTimeMs > 0 ? rawTimeMs - pickupTimeMs - putdownTimeMs
                 : 0;
             if (finalMs !== 0) {
@@ -426,6 +431,7 @@ function parseCubeastCsv(stringVal: string, splitter: string): Solve[] {
 
         obj.source = 'cubeast';
         obj.rawSource = 'cubeast';
+        if (obj.dnf) obj.isCorrupt = false;
 
         formedArr.push(obj);
         lineStart = lineEnd + 1;

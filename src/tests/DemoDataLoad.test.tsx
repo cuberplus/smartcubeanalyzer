@@ -52,8 +52,8 @@ jest.mock('../Workers/createChartWorker', () => ({
 
 const DEMO_CSV = join(__dirname, '..', '..', 'public', 'demo', 'demo-solves.csv');
 const EXPECTED_SOLVES = 21793;
-// Two solves in the demo data are corrupt and are dropped by the default filters.
-const EXPECTED_SHOWN = 21791;
+// One solve exceeds the default filters; the DNF now stays in average windows.
+const EXPECTED_SHOWN = 21792;
 
 let rawCsv: string;
 
@@ -191,6 +191,20 @@ describe('loading the bundled dev stats through the UI', () => {
             }
             const input = (id: string) => screen.getAllByRole('spinbutton').find(field => field.getAttribute('id') === id)!;
             const toggle = (id: string) => screen.getAllByRole('switch').find(field => field.getAttribute('id') === id)!;
+            expect((toggle('chopAverages') as HTMLInputElement).checked).toBe(true);
+            expect((input('chopPercentage') as HTMLInputElement).value).toBe('5');
+            await changeAndRestore(
+                () => {
+                    fireEvent.click(toggle('chopAverages'));
+                    expect((input('chopPercentage') as HTMLInputElement).disabled).toBe(true);
+                    expect(mockWorkerResults[mockWorkerResults.length - 1].input.chopPercentage).toBe(0);
+                },
+                () => fireEvent.click(toggle('chopAverages'))
+            );
+            await changeAndRestore(
+                () => fireEvent.change(input('chopPercentage'), { target: { value: '10' } }),
+                () => fireEvent.change(input('chopPercentage'), { target: { value: '5' } })
+            );
             await changeAndRestore(
                 () => fireEvent.change(input('slowestSolve'), { target: { value: '15' } }),
                 () => fireEvent.change(input('slowestSolve'), { target: { value: '300' } })
@@ -198,7 +212,7 @@ describe('loading the bundled dev stats through the UI', () => {
             await changeAndRestore(
                 () => {
                     fireEvent.change(input('fastestSolve'), { target: { value: '300' } });
-                    expect(screen.getByText(/Showing .* solves/).textContent).toContain('Showing 0 /');
+                    expect(screen.getByText(/Showing .* solves/).textContent).toContain('Showing 1 /');
                 },
                 () => fireEvent.change(input('fastestSolve'), { target: { value: '0' } })
             );

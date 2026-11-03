@@ -61,7 +61,7 @@ interface Fixture {
     rows: number;
     /** Which parser branch the header should select. */
     source: Solve['source'];
-    /** Solves the parser flags as corrupt (DNF, or a sub-second time). */
+    /** DNF rows retained for averages but excluded from successful-solve analysis. */
     corrupt: number;
     /** Methods present, sorted. Guards the method column mapping. */
     methods: string[];
@@ -156,7 +156,7 @@ function isoDay(date: Date): string {
 describe.each(FIXTURES)('$file', (fixture: Fixture) => {
     const raw = readFixture(fixture.file);
     const solves = parseCsv(raw, ',');
-    const sound = solves.filter(s => !s.isCorrupt);
+    const sound = solves.filter(s => !s.isCorrupt && !s.dnf);
 
     test('every data row becomes a solve', () => {
         // A parser that mis-splits a column containing a comma drops rows here
@@ -176,7 +176,8 @@ describe.each(FIXTURES)('$file', (fixture: Fixture) => {
     });
 
     test('sound solves have a positive time and turn count', () => {
-        expect(solves.filter(s => s.isCorrupt).length).toBe(fixture.corrupt);
+        expect(solves.filter(s => s.isCorrupt).length).toBe(0);
+        expect(solves.filter(s => s.dnf).length).toBe(fixture.corrupt);
         expect(sound.length).toBe(fixture.rows - fixture.corrupt);
         expect(sound.filter(s => !(s.time > 0))).toEqual([]);
         expect(sound.filter(s => !(s.turns > 0))).toEqual([]);
@@ -289,7 +290,8 @@ describe('an export with no case analysis', () => {
 
     test('parses cleanly', () => {
         expect(solves.length).toBe(34_243);
-        expect(solves.filter(s => s.isCorrupt).length).toBe(2);
+        expect(solves.filter(s => s.isCorrupt).length).toBe(0);
+        expect(solves.filter(s => s.dnf).length).toBe(2);
     });
 
     test('carries a PLL step whose case is blank rather than absent', () => {
@@ -298,9 +300,8 @@ describe('an export with no case analysis', () => {
         expect(pllCases.filter(c => c === '').length).toBe(solves.length);
     });
 
-    // 2 solves are corrupt and 2 more report an inspection time past the default
-    // 300s cap; everything else must survive.
-    const EXPECTED_KEPT = 34_239;
+    // DNFs stay in average windows; 2 solves exceed the default inspection cap.
+    const EXPECTED_KEPT = 34_241;
 
     test('survives the default filters instead of being rejected wholesale', () => {
         // A blank case is "not reported", not a case that matches nothing. Treating
@@ -310,7 +311,7 @@ describe('an export with no case analysis', () => {
     });
 
     test('still has the data every non-case chart needs', () => {
-        const kept = FilterPanel.applyFiltersToSolves(solves, defaultFilters(), 1_000);
+        const kept = FilterPanel.applyFiltersToSolves(solves, defaultFilters(), 1_000).filter(s => !s.dnf);
         expect(kept.filter(s => !(s.time > 0))).toEqual([]);
         expect(kept.filter(s => !(s.turns > 0))).toEqual([]);
         expect(kept.filter(s => !(s.tps > 0))).toEqual([]);

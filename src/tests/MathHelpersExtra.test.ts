@@ -75,8 +75,7 @@ describe('calculateMovingAverage', () => {
 });
 
 describe('calculateMovingAverageChopped validation', () => {
-    test('rejects a non-positive chop', () => {
-        expect(() => calculateMovingAverageChopped([1, 2, 3], 3, 0)).toThrow('Bad chop');
+    test('rejects a negative chop', () => {
         expect(() => calculateMovingAverageChopped([1, 2, 3], 3, -1)).toThrow('Bad chop');
     });
 

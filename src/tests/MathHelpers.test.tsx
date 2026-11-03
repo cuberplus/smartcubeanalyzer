@@ -22,6 +22,25 @@ test('calculateMovingAverage calculates the moving average of an array', () => {
 });
 
 describe('calculateMovingAverageChopped', () => {
+    test.each([5, 12, 37, 100, 1000])('matches sorted-window averages with DNFs and recovers (Ao%i)', window => {
+        const chop = Math.ceil(window / 20);
+        const data = Array.from({ length: window * 3 }, (_, i) =>
+            i < window && i % 3 === 0 ? Infinity : 10 + ((i * 73) % 211) / 100);
+        const actual = calculateMovingAverageChopped(data, window);
+        for (let i = 0; i < actual.length; i++) {
+            const kept = data.slice(i, i + window).sort((a, b) => a - b).slice(chop, -chop);
+            const expected = kept.reduce((sum, value) => sum + value, 0) / kept.length;
+            expect(actual[i]).toBeCloseTo(expected, 9);
+        }
+        expect(actual[0]).toBe(Infinity);
+        expect(Number.isFinite(actual[actual.length - 1])).toBe(true);
+    });
+
+    test('trims an allowed DNF as the worst time', () => {
+        expect(calculateMovingAverageChopped([1, 2, 3, 4, Infinity], 5)).toEqual([3]);
+        expect(calculateMovingAverageChopped(Array(12).fill(Infinity), 12)).toEqual([Infinity]);
+    });
+
     test('basic chop=1 case', () => {
         // window=5, chop=1 → drop 1 lo + 1 hi, average middle 3
         // windows: [1,2,3,4,5]→3, [2,3,4,5,6]→4, ..., [6,7,8,9,10]→8  (n-w+1 = 6 results)
@@ -75,8 +94,13 @@ describe('calculateMovingAverageChopped', () => {
         expect(() => calculateMovingAverageChopped([1, 2, 3, 4, 5], 4, 2)).toThrow();
     });
 
-    test('throws on non-positive chop', () => {
-        expect(() => calculateMovingAverageChopped([1, 2, 3, 4, 5], 5, 0)).toThrow();
+    test('throws on negative chop', () => {
+        expect(() => calculateMovingAverageChopped([1, 2, 3, 4, 5], 5, -1)).toThrow();
+    });
+
+    test('zero chop computes an untrimmed mean and recovers after DNFs', () => {
+        expect(calculateMovingAverageChopped([1, 2, 3, 4, 100], 5, 0)).toEqual([22]);
+        expect(calculateMovingAverageChopped([Infinity, 2, 4, 6], 2, 0)).toEqual([Infinity, 3, 5]);
     });
 
     test('chopLo/included/chopHi stay fixed size throughout (invariant via brute-force comparison)', () => {

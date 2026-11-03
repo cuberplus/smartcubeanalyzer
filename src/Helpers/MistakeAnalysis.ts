@@ -46,7 +46,7 @@ export function getMistakeMap(values: number[], windowSize: number): boolean[] {
 }
 
 export function markMistakes(solves: Solve[], windowSize: number): Solve[] {
-    const valid = solves.filter(s => !s.isCorrupt);
+    const valid = solves.filter(s => !s.isCorrupt && !s.dnf);
     const examples = new Map<string, number[]>();
     for (const solve of valid) for (const { name, case: caseName, moves } of solve.steps) {
         if ((name !== StepName.OLL && name !== StepName.PLL) || !caseName || caseName === 'Solved' || !moves) continue;
